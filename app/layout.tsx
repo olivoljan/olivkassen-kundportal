@@ -1,3 +1,5 @@
+
+
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -23,12 +25,31 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
+    <html lang="sv" suppressHydrationWarning>
+      <body>
+  <div
+    style={{
+      minHeight: "100vh",
+      background: "#fafafa",
+      display: "flex",
+      justifyContent: "center",
+      padding: "40px 16px",
+    }}
+  >
+    <div
+      style={{
+        width: "100%",
+        maxWidth: "720px",
+        background: "#fff",
+        padding: "32px",
+        borderRadius: "12px",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.05)",
+      }}
+    >
+      {children}
+    </div>
+  </div>
+</body>
     </html>
   );
 }

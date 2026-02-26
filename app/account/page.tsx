@@ -118,41 +118,25 @@ export default function AccountPage() {
           subscription?.status &&
           subscription.status !== "none" && (
             <div>
-              <h3 style={{ marginBottom: 16 }}>Prenumeration</h3>
-              <div
-                style={{
-                  background: "#f8f9fa",
-                  padding: 20,
-                  borderRadius: 12,
-                  border: "1px solid #e9ecef",
-                }}
-              >
-                <p style={{ margin: 0, marginBottom: 8, fontSize: 18 }}>
-                  <strong>{subscription.product ?? "Unknown product"}</strong>
+              <h3>Prenumeration</h3>
+
+              <p style={{ marginTop: 12, marginBottom: 8 }}>
+                <strong>Produkt:</strong> {subscription.product ?? "—"}
+              </p>
+              <p style={{ marginBottom: 8 }}>
+                <strong>Status:</strong> {subscription.status}
+              </p>
+              {subscription.current_period_end && (
+                <p style={{ marginBottom: 8 }}>
+                  <strong>Nästa leverans:</strong>{" "}
+                  {new Date(
+                    subscription.current_period_end * 1000
+                  ).toLocaleDateString("sv-SE")}
                 </p>
-                <p style={{ margin: 0, marginBottom: 4, fontSize: 20, color: "#212529" }}>
-                  {subscription.amount != null && subscription.currency
-                    ? new Intl.NumberFormat("sv-SE", {
-                        style: "currency",
-                        currency: (subscription.currency as string).toUpperCase(),
-                      }).format((subscription.amount as number) / 100)
-                    : "—"}
-                </p>
-                <p style={{ margin: 0, fontSize: 14, color: "#6c757d" }}>
-                  {(() => {
-                    const i = subscription.interval as string | null;
-                    const c = subscription.interval_count as number | null;
-                    if (!i) return "—";
-                    if (c === 1) {
-                      if (i === "month") return "per månad";
-                      if (i === "year") return "per år";
-                      return `per ${i}`;
-                    }
-                    const plural = i === "month" ? "månader" : i === "year" ? "år" : i + "s";
-                    return `varje ${c} ${plural}`;
-                  })()}
-                </p>
-              </div>
+              )}
+              <p style={{ marginBottom: 16 }}>
+                <strong>Leveransadress:</strong> —
+              </p>
             </div>
           )}
       </div>

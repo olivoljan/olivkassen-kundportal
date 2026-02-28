@@ -30,5 +30,5 @@ export default async function AuthCallback(props: {
     await supabase.auth.exchangeCodeForSession(searchParams.code);
   }
 
-  redirect("/account");
+  redirect("/mina-sidor");
 }

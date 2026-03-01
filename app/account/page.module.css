@@ -1,0 +1,127 @@
+.wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 60px 20px;
+}
+
+.card {
+  background: white;
+  max-width: 600px;
+  width: 100%;
+  padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+}
+
+.heading {
+  font-size: 28px;
+  margin-bottom: 20px;
+}
+
+.email {
+  margin-bottom: 20px;
+}
+
+.sectionTitle {
+  margin-top: 30px;
+  margin-bottom: 15px;
+  font-size: 20px;
+}
+
+.details {
+  margin: 15px 0;
+}
+
+.addressBox {
+  margin: 20px 0;
+  padding: 15px;
+  background: #f5f5f5;
+  border-radius: 8px;
+}
+
+.primaryButton {
+  width: 100%;
+  padding: 12px;
+  margin-top: 20px;
+  background: black;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.links {
+  margin-top: 20px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.danger {
+  color: red;
+}
+
+.badge {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.active {
+  background: #e6f7ed;
+  color: #0a7a36;
+}
+
+.paused {
+  background: #fff4e5;
+  color: #b36b00;
+}
+
+.canceling {
+  background: #ffeaea;
+  color: #b30000;
+}
+
+.canceled {
+  background: #eee;
+  color: #666;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  max-width: 400px;
+  width: 100%;
+}
+
+.modalButtons {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+.secondaryButton {
+  padding: 10px 15px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: white;
+}
+
+.dangerButton {
+  padding: 10px 15px;
+  border-radius: 6px;
+  border: none;
+  background: red;
+  color: white;
+}

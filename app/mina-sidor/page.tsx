@@ -1,20 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabaseClient";
 
 export default function AccountPage() {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-      },
-    }
-  );
+  const supabase = createClient();
 
   const [email, setEmail] = useState<string | null>(null);
   const [subscription, setSubscription] = useState<any>(null);

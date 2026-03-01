@@ -56,15 +56,20 @@ export default function AccountPage() {
       if (session) {
         setSession(session);
         setEmail(session.user.email ?? null);
-  
+      
+        // 🔥 Ensure Stripe customer is synced first
+        await safeFetch("/api/stripe/sync-customer", {
+          userId: session.user.id,
+        });
+      
         const sub = await safeFetch("/api/stripe/subscription", {
           userId: session.user.id,
         });
-  
+      
         if (sub?.cancel_at_period_end) {
           sub.status = "canceling";
         }
-  
+      
         setSubscription(sub);
       }
   

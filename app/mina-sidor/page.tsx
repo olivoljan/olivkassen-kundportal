@@ -49,33 +49,38 @@ export default function AccountPage() {
         data: { session },
       } = await supabase.auth.getSession();
   
-      if (session) {
-        setSession(session);
-        setEmail(session.user.email ?? null);
-  
-        const sub = await safeFetch("/api/stripe/subscription", {
-          userId: session.user.id,
-        });
-  
-        if (sub?.cancel_at_period_end) {
-          sub.status = "canceling";
-        }
-  
-        setSubscription(sub);
-        setLoading(false);
+      if (!session) {
+        setLoading(false); // 🔥 IMPORTANT
+        return;
       }
+  
+      setSession(session);
+      setEmail(session.user.email ?? null);
+  
+      const sub = await safeFetch("/api/stripe/subscription", {
+        userId: session.user.id,
+      });
+  
+      if (sub?.cancel_at_period_end) {
+        sub.status = "canceling";
+      }
+  
+      setSubscription(sub);
+      setLoading(false);
     };
   
     load();
   
     const {
       data: { subscription: authListener },
-    } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
-      if (session) {
-        setSession(session);
-        setEmail(session.user.email ?? null);
+    } = supabase.auth.onAuthStateChange(
+      (_event: any, session: any) => {
+        if (session) {
+          setSession(session);
+          setEmail(session.user.email ?? null);
+        }
       }
-    });
+    );
   
     return () => {
       authListener.unsubscribe();

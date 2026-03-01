@@ -44,40 +44,39 @@ export default function AccountPage() {
     });
   };
 
-  /* ========================= LOAD DATA (FIXED) ========================== */
+  /* ========================= LOAD DATA ========================== */
 
   useEffect(() => {
     async function load() {
       try {
-        const { data: userData } = await supabase.auth.getUser();
-
-        if (!userData?.user) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+  
+        if (!session) {
           setLoading(false);
           return;
         }
-
-        setSession({ user: userData.user });
-        setEmail(userData.user.email ?? null);
-
-        const subscriptionData = await safeFetch(
-          "/api/stripe/subscription",
-          {
-            userId: userData.user.id,
-          }
-        );
-
-        if (subscriptionData?.cancel_at_period_end) {
-          subscriptionData.status = "canceling";
+  
+        setSession(session);
+        setEmail(session.user.email ?? null);
+  
+        const sub = await safeFetch("/api/stripe/subscription", {
+          userId: session.user.id,
+        });
+  
+        if (sub?.cancel_at_period_end) {
+          sub.status = "canceling";
         }
-
-        setSubscription(subscriptionData);
+  
+        setSubscription(sub);
       } catch (err) {
-        console.error("LOAD ERROR:", err);
+        console.error(err);
       } finally {
         setLoading(false);
       }
     }
-
+  
     load();
   }, []);
 

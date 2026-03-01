@@ -3,6 +3,22 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 
+const DESIGN = {
+  background: "#f4f1ea",
+  cardBg: "#ffffff",
+  primaryGreen: "#1f5f2f",
+  darkGreen: "#163d1f",
+  textPrimary: "#2e3a2d",
+  mutedText: "#6b6b6b",
+  softBorder: "#e8e4db",
+  largeRadius: 32,
+  pillRadius: 999,
+  buttonPadding: 18,
+  sectionSpacing: 40,
+  cardPadding: 60,
+  cardShadow: "0 30px 80px rgba(0,0,0,0.05)",
+};
+
 export default function AccountPage() {
   const supabase = createClient();
 
@@ -11,6 +27,9 @@ export default function AccountPage() {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<any>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [primaryHover, setPrimaryHover] = useState(false);
+  const [linkHover, setLinkHover] = useState<string | null>(null);
+  const [modalPrimaryHover, setModalPrimaryHover] = useState(false);
 
   /* ================= SAFE FETCH ================= */
 
@@ -176,7 +195,7 @@ export default function AccountPage() {
     if (!subscription?.status) return null;
 
     if (subscription.status === "active")
-      return badge("#dcfce7", "#166534", "Aktiv prenumeration");
+      return badge("#dcfce7", DESIGN.primaryGreen, "Aktiv prenumeration");
 
     if (subscription.status === "paused")
       return badge("#fef3c7", "#92400e", "Pausad prenumeration");
@@ -193,81 +212,146 @@ export default function AccountPage() {
   /* ================= RENDER ================= */
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f4f1ea", padding: "40px 20px" }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: DESIGN.background,
+        padding: `${DESIGN.sectionSpacing}px 20px`,
+      }}
+    >
       <div
         style={{
           maxWidth: 640,
           margin: "0 auto",
-          background: "white",
-          padding: 50,
-          borderRadius: 28,
-          boxShadow: "0 20px 60px rgba(0,0,0,0.06)",
+          background: DESIGN.cardBg,
+          padding: DESIGN.cardPadding,
+          borderRadius: DESIGN.largeRadius,
+          boxShadow: DESIGN.cardShadow,
+          border: `1px solid ${DESIGN.softBorder}`,
         }}
       >
-        <h2>Mitt konto</h2>
+        <h2
+          style={{
+            fontSize: 28,
+            fontWeight: 600,
+            color: DESIGN.textPrimary,
+            marginBottom: DESIGN.sectionSpacing,
+          }}
+        >
+          Mitt konto
+        </h2>
 
-        <p>
-          <strong>E-post:</strong> {email ?? "—"}
+        <p
+          style={{
+            color: DESIGN.textPrimary,
+            marginBottom: 16,
+          }}
+        >
+          <strong style={{ color: DESIGN.textPrimary }}>E-post:</strong>{" "}
+          {email ?? "—"}
         </p>
 
-        {loading && <p>Laddar prenumeration...</p>}
+        {loading && (
+          <p style={{ color: DESIGN.mutedText }}>Laddar prenumeration...</p>
+        )}
 
         {!loading && subscription?.status && (
           <>
             {subscription.customer_name && (
-              <p>Hej {subscription.customer_name},</p>
+              <p
+                style={{
+                  color: DESIGN.textPrimary,
+                  marginBottom: 16,
+                }}
+              >
+                Hej {subscription.customer_name},
+              </p>
             )}
 
-            <h3>Prenumeration</h3>
+            <h3
+              style={{
+                fontSize: 20,
+                fontWeight: 600,
+                color: DESIGN.textPrimary,
+                marginBottom: 16,
+                marginTop: DESIGN.sectionSpacing,
+              }}
+            >
+              Prenumeration
+            </h3>
 
             {renderStatusBadge()}
 
             {subscription.status !== "canceled" && (
               <>
-                <p>
-                  <strong>Produkt:</strong> {subscription.product}
+                <p
+                  style={{
+                    color: DESIGN.textPrimary,
+                    marginBottom: 12,
+                  }}
+                >
+                  <strong style={{ color: DESIGN.textPrimary }}>Produkt:</strong>{" "}
+                  {subscription.product}
                 </p>
 
-                <p>
-                  <strong>Pris:</strong>{" "}
+                <p
+                  style={{
+                    color: DESIGN.textPrimary,
+                    marginBottom: 12,
+                  }}
+                >
+                  <strong style={{ color: DESIGN.textPrimary }}>Pris:</strong>{" "}
                   {(subscription.amount / 100).toFixed(2)}{" "}
                   {subscription.currency?.toUpperCase()} – var{" "}
                   {subscription.interval_count}:e månad
                 </p>
 
                 {subscription.current_period_end && (
-                  <p>
-                    <strong>Nästa leverans:</strong>{" "}
+                  <p
+                    style={{
+                      color: DESIGN.textPrimary,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <strong style={{ color: DESIGN.textPrimary }}>
+                      Nästa leverans:
+                    </strong>{" "}
                     {formatDate(subscription.current_period_end)}
                   </p>
                 )}
 
-                {/* BUTTONS */}
-                <div style={{ marginTop: 30 }}>
+                <div style={{ marginTop: DESIGN.sectionSpacing }}>
                   <button
                     onClick={handlePortal}
+                    onMouseEnter={() => setPrimaryHover(true)}
+                    onMouseLeave={() => setPrimaryHover(false)}
                     style={{
                       width: "100%",
-                      padding: "14px",
-                      borderRadius: 12,
+                      padding: DESIGN.buttonPadding,
+                      borderRadius: DESIGN.pillRadius,
                       border: "none",
-                      background: "#166534",
+                      background: primaryHover ? DESIGN.darkGreen : DESIGN.primaryGreen,
                       color: "#fff",
                       fontWeight: 600,
                       cursor: "pointer",
-                      marginBottom: 16,
+                      marginBottom: 20,
+                      transition: "background 0.2s ease",
                     }}
                   >
                     Hantera prenumeration
                   </button>
 
-                  <div style={{ display: "flex", gap: 20 }}>
+                  <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
                     <span
                       onClick={handlePauseResume}
+                      onMouseEnter={() => setLinkHover("pause")}
+                      onMouseLeave={() => setLinkHover(null)}
                       style={{
                         cursor: "pointer",
                         textDecoration: "underline",
-                        color: "#2563eb",
+                        color: "#000000",
+                        opacity: linkHover === "pause" ? 0.7 : 1,
+                        transition: "opacity 0.2s ease",
                       }}
                     >
                       {subscription.status === "paused"
@@ -278,9 +362,14 @@ export default function AccountPage() {
                     {subscription.status === "canceling" ? (
                       <span
                         onClick={handleUndoCancel}
+                        onMouseEnter={() => setLinkHover("undo")}
+                        onMouseLeave={() => setLinkHover(null)}
                         style={{
                           cursor: "pointer",
                           textDecoration: "underline",
+                          color: "#000000",
+                          opacity: linkHover === "undo" ? 0.7 : 1,
+                          transition: "opacity 0.2s ease",
                         }}
                       >
                         Ångra avslut
@@ -288,10 +377,14 @@ export default function AccountPage() {
                     ) : (
                       <span
                         onClick={() => setShowCancelModal(true)}
+                        onMouseEnter={() => setLinkHover("cancel")}
+                        onMouseLeave={() => setLinkHover(null)}
                         style={{
                           cursor: "pointer",
                           textDecoration: "underline",
-                          color: "#b91c1c",
+                          color: "#000000",
+                          opacity: linkHover === "cancel" ? 0.7 : 1,
+                          transition: "opacity 0.2s ease",
                         }}
                       >
                         Avsluta prenumeration
@@ -305,42 +398,126 @@ export default function AccountPage() {
         )}
       </div>
 
-      {/* MODAL */}
+      {/* Premium Cancel Modal */}
       {showCancelModal && (
         <div
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.5)",
+            background: "rgba(0,0,0,0.4)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 50,
+            zIndex: 100,
           }}
         >
           <div
             style={{
-              maxWidth: 400,
-              padding: 28,
-              background: "white",
-              borderRadius: 20,
+              maxWidth: 480,
+              width: "100%",
+              margin: 20,
+              background: DESIGN.cardBg,
+              padding: 48,
+              borderRadius: DESIGN.largeRadius,
+              boxShadow: "0 40px 100px rgba(0,0,0,0.08)",
+              border: `1px solid ${DESIGN.softBorder}`,
+              position: "relative",
             }}
           >
-            <h3>Vill du verkligen avsluta?</h3>
-            <p>Du kan pausa istället och fortsätta senare.</p>
+            <button
+              type="button"
+              onClick={() => setShowCancelModal(false)}
+              style={{
+                position: "absolute",
+                top: 20,
+                right: 20,
+                background: "none",
+                border: "none",
+                fontSize: 18,
+                color: DESIGN.mutedText,
+                cursor: "pointer",
+                padding: 4,
+                lineHeight: 1,
+              }}
+              aria-label="Stäng"
+            >
+              ×
+            </button>
 
-            <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ textAlign: "center" }}>
+              <img
+                src="https://cdn.prod.website-files.com/676d596f9615722376dfe2fc/67eee07f994057c9694ea78a_olives.png"
+                alt=""
+                width={60}
+                height={60}
+                style={{ marginBottom: 24 }}
+              />
+
+              <h3
+                style={{
+                  fontSize: 24,
+                  fontWeight: 600,
+                  color: DESIGN.textPrimary,
+                  marginBottom: 20,
+                }}
+              >
+                Vill du avsluta din prenumeration?
+              </h3>
+
+              <p
+                style={{
+                  color: DESIGN.mutedText,
+                  lineHeight: 1.6,
+                  marginBottom: 30,
+                }}
+              >
+                Du vet väl att du även kan pausa abonnemanget? Då behåller du din
+                profil och kan aktivera igen när du vill. Om du istället avslutar
+                raderas din profil helt och hållet, och när du behöver registrera
+                dig på nytt gäller ett nytt, högre pris.
+              </p>
+
               <button
+                type="button"
                 onClick={() => {
                   setShowCancelModal(false);
                   handlePauseResume();
                 }}
+                onMouseEnter={() => setModalPrimaryHover(true)}
+                onMouseLeave={() => setModalPrimaryHover(false)}
+                style={{
+                  width: "100%",
+                  padding: DESIGN.buttonPadding,
+                  borderRadius: DESIGN.pillRadius,
+                  border: "none",
+                  background: modalPrimaryHover ? DESIGN.darkGreen : DESIGN.primaryGreen,
+                  color: "#fff",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  marginBottom: 20,
+                  transition: "background 0.2s ease",
+                }}
               >
-                Pausa istället
+                Pausa
               </button>
 
-              <button onClick={handleCancelAtEnd}>
-                Avsluta vid periodens slut
+              <button
+                type="button"
+                onClick={handleCancelAtEnd}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "center",
+                  background: "none",
+                  border: "none",
+                  color: "#b91c1c",
+                  textDecoration: "underline",
+                  cursor: "pointer",
+                  padding: 8,
+                  fontSize: "inherit",
+                }}
+              >
+                Avbryt
               </button>
             </div>
           </div>

@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     const returnUrl =
       process.env.NEXT_PUBLIC_SITE_URL
         ? `${process.env.NEXT_PUBLIC_SITE_URL}/mina-sidor`
-        : "http://localhost:3000/mina-sidor";
+        : "https://konto.olivkassen.com/mina-sidor";
 
     const session = await stripe.billingPortal.sessions.create({
       customer: profile.stripe_customer_id,

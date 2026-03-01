@@ -3,64 +3,6 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 
-const OLIVE_ICON =
-  "https://cdn.prod.website-files.com/676d596f9615722376dfe2fc/67eee07f994057c9694ea78a_olives.png";
-
-const pageWrapStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "#f4f1ea",
-  padding: "40px 20px",
-};
-
-const cardStyle: React.CSSProperties = {
-  maxWidth: 680,
-  margin: "0 auto",
-  background: "white",
-  border: "1px solid #e8e4db",
-  borderRadius: 32,
-  padding: 60,
-  boxShadow: "0 30px 80px rgba(0,0,0,0.05)",
-  position: "relative",
-};
-
-const headingStyle: React.CSSProperties = {
-  fontFamily: "Bricolage Grotesque, sans-serif",
-  fontWeight: 600,
-  color: "#2e3a2d",
-};
-
-const bodyStyle: React.CSSProperties = {
-  fontFamily: "Bricolage Grotesque, sans-serif",
-  fontWeight: 400,
-  color: "#6b6b6b",
-};
-
-const linkStyle: React.CSSProperties = {
-  color: "black",
-  textDecoration: "underline",
-  cursor: "pointer",
-  fontFamily: "Bricolage Grotesque, sans-serif",
-  fontWeight: 400,
-  background: "none",
-  border: "none",
-  padding: 0,
-  fontSize: 16,
-};
-
-const primaryButtonStyle: React.CSSProperties = {
-  width: "100%",
-  padding: 18,
-  fontSize: 16,
-  fontWeight: 600,
-  fontFamily: "Bricolage Grotesque, sans-serif",
-  background: "#1f5f2f",
-  color: "white",
-  border: "none",
-  borderRadius: 999,
-  cursor: "pointer",
-  transition: "background 0.2s ease",
-};
-
 export default function AccountPage() {
   const supabase = createClient();
 
@@ -103,34 +45,34 @@ export default function AccountPage() {
 
   useEffect(() => {
     let mounted = true;
-
+  
     const load = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
-
+  
       if (!mounted) return;
-
+  
       if (session) {
         setSession(session);
         setEmail(session.user.email ?? null);
-
+  
         const sub = await safeFetch("/api/stripe/subscription", {
           userId: session.user.id,
         });
-
+  
         if (sub?.cancel_at_period_end) {
           sub.status = "canceling";
         }
-
+  
         setSubscription(sub);
       }
-
-      setLoading(false);
+  
+      setLoading(false); // 🔥 ALWAYS run this
     };
-
+  
     load();
-
+  
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(
@@ -141,7 +83,7 @@ export default function AccountPage() {
         }
       }
     );
-
+  
     return () => {
       mounted = false;
       subscription.unsubscribe();
@@ -219,7 +161,6 @@ export default function AccountPage() {
         padding: "6px 14px",
         fontSize: 12,
         fontWeight: 600,
-        fontFamily: "Bricolage Grotesque, sans-serif",
         color,
         background: bg,
         borderRadius: 999,
@@ -249,97 +190,85 @@ export default function AccountPage() {
     return null;
   };
 
-  const linkHover = (e: React.MouseEvent<HTMLSpanElement>, over: boolean) => {
-    e.currentTarget.style.opacity = over ? "0.7" : "1";
-  };
-
   /* ================= RENDER ================= */
 
   return (
-    <div style={pageWrapStyle}>
-      <div style={cardStyle}>
-        <img
-          src={OLIVE_ICON}
-          alt=""
-          width={70}
-          height={70}
-          style={{ display: "block", margin: "0 auto 30px" }}
-        />
-        <h2 style={{ ...headingStyle, fontSize: 24, marginBottom: 16 }}>
-          Mitt konto
-        </h2>
+    <div style={{ minHeight: "100vh", background: "#f4f1ea", padding: "40px 20px" }}>
+      <div
+        style={{
+          maxWidth: 640,
+          margin: "0 auto",
+          background: "white",
+          padding: 50,
+          borderRadius: 28,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.06)",
+        }}
+      >
+        <h2>Mitt konto</h2>
 
-        <p style={{ ...bodyStyle, marginBottom: 8 }}>
-          <strong style={{ color: "#2e3a2d" }}>E-post:</strong>{" "}
-          {email ?? "—"}
+        <p>
+          <strong>E-post:</strong> {email ?? "—"}
         </p>
 
-        {loading && (
-          <p style={bodyStyle}>Laddar prenumeration...</p>
-        )}
+        {loading && <p>Laddar prenumeration...</p>}
 
         {!loading && subscription?.status && (
           <>
             {subscription.customer_name && (
-              <p style={{ ...bodyStyle, marginBottom: 8 }}>
-                Hej {subscription.customer_name},
-              </p>
+              <p>Hej {subscription.customer_name},</p>
             )}
 
-            <h3 style={{ ...headingStyle, fontSize: 18, marginTop: 24, marginBottom: 8 }}>
-              Prenumeration
-            </h3>
+            <h3>Prenumeration</h3>
 
             {renderStatusBadge()}
 
             {subscription.status !== "canceled" && (
               <>
-                <p style={{ ...bodyStyle, marginBottom: 8 }}>
-                  <strong style={{ color: "#2e3a2d" }}>Produkt:</strong>{" "}
-                  {subscription.product}
+                <p>
+                  <strong>Produkt:</strong> {subscription.product}
                 </p>
 
-                <p style={{ ...bodyStyle, marginBottom: 8 }}>
-                  <strong style={{ color: "#2e3a2d" }}>Pris:</strong>{" "}
+                <p>
+                  <strong>Pris:</strong>{" "}
                   {(subscription.amount / 100).toFixed(2)}{" "}
                   {subscription.currency?.toUpperCase()} – var{" "}
                   {subscription.interval_count}:e månad
                 </p>
 
                 {subscription.current_period_end && (
-                  <p style={{ ...bodyStyle, marginBottom: 8 }}>
-                    <strong style={{ color: "#2e3a2d" }}>Nästa leverans:</strong>{" "}
+                  <p>
+                    <strong>Nästa leverans:</strong>{" "}
                     {formatDate(subscription.current_period_end)}
                   </p>
                 )}
 
+                {/* BUTTONS */}
                 <div style={{ marginTop: 30 }}>
                   <button
                     onClick={handlePortal}
-                    style={primaryButtonStyle}
-                    onMouseOver={(e) =>
-                      (e.currentTarget.style.background = "#1a4f27")
-                    }
-                    onMouseOut={(e) =>
-                      (e.currentTarget.style.background = "#1f5f2f")
-                    }
+                    style={{
+                      width: "100%",
+                      padding: "14px",
+                      borderRadius: 12,
+                      border: "none",
+                      background: "#166534",
+                      color: "#fff",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      marginBottom: 16,
+                    }}
                   >
                     Hantera prenumeration
                   </button>
 
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 20,
-                      marginTop: 20,
-                      flexWrap: "wrap",
-                    }}
-                  >
+                  <div style={{ display: "flex", gap: 20 }}>
                     <span
                       onClick={handlePauseResume}
-                      onMouseOver={(e) => linkHover(e, true)}
-                      onMouseOut={(e) => linkHover(e, false)}
-                      style={linkStyle}
+                      style={{
+                        cursor: "pointer",
+                        textDecoration: "underline",
+                        color: "#2563eb",
+                      }}
                     >
                       {subscription.status === "paused"
                         ? "Återuppta prenumeration"
@@ -349,18 +278,21 @@ export default function AccountPage() {
                     {subscription.status === "canceling" ? (
                       <span
                         onClick={handleUndoCancel}
-                        onMouseOver={(e) => linkHover(e, true)}
-                        onMouseOut={(e) => linkHover(e, false)}
-                        style={linkStyle}
+                        style={{
+                          cursor: "pointer",
+                          textDecoration: "underline",
+                        }}
                       >
                         Ångra avslut
                       </span>
                     ) : (
                       <span
                         onClick={() => setShowCancelModal(true)}
-                        onMouseOver={(e) => linkHover(e, true)}
-                        onMouseOut={(e) => linkHover(e, false)}
-                        style={linkStyle}
+                        style={{
+                          cursor: "pointer",
+                          textDecoration: "underline",
+                          color: "#b91c1c",
+                        }}
                       >
                         Avsluta prenumeration
                       </span>
@@ -384,7 +316,6 @@ export default function AccountPage() {
             alignItems: "center",
             justifyContent: "center",
             zIndex: 50,
-            padding: 20,
           }}
         >
           <div
@@ -393,103 +324,85 @@ export default function AccountPage() {
               width: "100%",
               padding: 60,
               background: "white",
-              border: "1px solid #e8e4db",
               borderRadius: 32,
-              boxShadow: "0 30px 80px rgba(0,0,0,0.05)",
-              position: "relative",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.12)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
             }}
           >
-            <button
-              type="button"
-              onClick={() => setShowCancelModal(false)}
-              aria-label="Stäng"
-              style={{
-                position: "absolute",
-                top: 24,
-                right: 24,
-                background: "none",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-                fontSize: 20,
-                color: "black",
-                lineHeight: 1,
-                fontFamily: "Bricolage Grotesque, sans-serif",
-              }}
-              onMouseOver={(e) => (e.currentTarget.style.opacity = "0.7")}
-              onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
-            >
-              ×
-            </button>
-
-            <h3
-              style={{
-                ...headingStyle,
-                fontSize: 20,
-                marginBottom: 12,
-                paddingRight: 32,
-              }}
-            >
+            <img
+              src="https://cdn.prod.website-files.com/676d596f9615722376dfe2fc/67eee07f994057c9694ea78a_olives.png"
+              alt=""
+              width={70}
+              height={70}
+              style={{ marginBottom: 30 }}
+            />
+            <h3 style={{ margin: "0 0 16px", textAlign: "center" }}>
               Vill du verkligen avsluta?
             </h3>
             <p
               style={{
-                ...bodyStyle,
-                marginBottom: 28,
+                margin: "0 0 30px",
+                textAlign: "center",
+                lineHeight: 1.5,
               }}
             >
-              Du kan pausa istället och fortsätta senare.
+              Du vet väl att du även kan pausa abonnemanget? Då behåller du din
+              profil och kan aktivera igen när du vill. Om du istället avslutar
+              raderas din profil helt och hållet, och när du behöver registrera
+              dig på nytt gäller ett nytt, högre pris.
             </p>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCancelModal(false);
-                  handlePauseResume();
-                }}
-                style={{
-                  ...primaryButtonStyle,
-                  width: "100%",
-                }}
-                onMouseOver={(e) =>
-                  (e.currentTarget.style.background = "#1a4f27")
-                }
-                onMouseOut={(e) =>
-                  (e.currentTarget.style.background = "#1f5f2f")
-                }
-              >
-                Pausa istället
-              </button>
+            <button
+              onClick={() => {
+                setShowCancelModal(false);
+                handlePauseResume();
+              }}
+              style={{
+                width: "100%",
+                height: 43,
+                background: "#203208",
+                color: "#FBEA74",
+                fontFamily: '"Bricolage Grotesque", sans-serif',
+                fontWeight: 500,
+                fontSize: 18,
+                border: "none",
+                borderRadius: 999,
+                cursor: "pointer",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#1a2906";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#203208";
+              }}
+            >
+              Pausa
+            </button>
 
-              <button
-                type="button"
-                onClick={handleCancelAtEnd}
-                style={{
-                  ...primaryButtonStyle,
-                  width: "100%",
-                  background: "#2e3a2d",
-                }}
-                onMouseOver={(e) =>
-                  (e.currentTarget.style.background = "#232e26")
-                }
-                onMouseOut={(e) =>
-                  (e.currentTarget.style.background = "#2e3a2d")
-                }
-              >
-                Avsluta vid periodens slut
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowCancelModal(false)}
-                style={linkStyle}
-                onMouseOver={(e) => linkHover(e, true)}
-                onMouseOut={(e) => linkHover(e, false)}
-              >
-                Avbryt
-              </button>
-            </div>
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                setShowCancelModal(false);
+              }}
+              style={{
+                marginTop: 20,
+                color: "#000",
+                textDecoration: "underline",
+                cursor: "pointer",
+                fontSize: "inherit",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = "0.8";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = "1";
+              }}
+            >
+              Avbryt
+            </a>
           </div>
         </div>
       )}

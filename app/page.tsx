@@ -95,12 +95,12 @@ export default function Home() {
           ).value;
 
           const { error } =
-            await supabase.auth.signInWithOtp({
-              email,
-              options: {
-                emailRedirectTo: "http://localhost:3000/auth/callback",
-              },
-            });
+          await supabase.auth.signInWithOtp({
+            email,
+            options: {
+              emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+            },
+          });
 
           if (error) {
             alert(error.message);

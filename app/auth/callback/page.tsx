@@ -7,7 +7,7 @@ export default async function AuthCallback({
 }: {
   searchParams: { code?: string };
 }) {
-  const cookieStore = await cookies(); // ✅ await is REQUIRED in your version
+  const cookieStore = await cookies(); // ✅ MUST be awaited
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

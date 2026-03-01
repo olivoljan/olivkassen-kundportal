@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabaseClient";
 
 export default function Home() {
 
-  const supabase = createClient(); // ✅ INSIDE component
+  const supabase = createClient(); 
 
   const [state, setState] = useState<
     "login" | "sent" | "expired"

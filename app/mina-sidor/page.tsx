@@ -12,7 +12,7 @@ export default function AccountPage() {
   const [session, setSession] = useState<any>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
-  /* ========================= SAFE FETCH ========================== */
+  /* ================= SAFE FETCH ================= */
 
   const safeFetch = async (url: string, body: any) => {
     const res = await fetch(url, {
@@ -29,7 +29,7 @@ export default function AccountPage() {
     return await res.json();
   };
 
-  /* ========================= FORMAT DATE ========================== */
+  /* ================= FORMAT DATE ================= */
 
   const formatDate = (timestamp: number | null) => {
     if (!timestamp) return null;
@@ -41,43 +41,48 @@ export default function AccountPage() {
     });
   };
 
-  /* ========================= LOAD DATA ========================== */
+  /* ================= LOAD DATA ================= */
 
   useEffect(() => {
     const load = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
   
-      if (!session) {
-        // Wait a tick and try again
-        await new Promise(res => setTimeout(res, 100));
-        const retry = await supabase.auth.getSession();
-        if (!retry.data.session) {
-          setLoading(false);
-          return;
-        }
-        setSession(retry.data.session);
-        setEmail(retry.data.session.user.email ?? null);
-      } else {
+      if (session) {
         setSession(session);
         setEmail(session.user.email ?? null);
+  
+        const sub = await safeFetch("/api/stripe/subscription", {
+          userId: session.user.id,
+        });
+  
+        if (sub?.cancel_at_period_end) {
+          sub.status = "canceling";
+        }
+  
+        setSubscription(sub);
+        setLoading(false);
       }
-  
-      const sub = await safeFetch("/api/stripe/subscription", {
-        userId: session?.user?.id,
-      });
-  
-      if (sub?.cancel_at_period_end) {
-        sub.status = "canceling";
-      }
-  
-      setSubscription(sub);
-      setLoading(false);
     };
   
     load();
+  
+    const {
+      data: { subscription: authListener },
+    } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
+      if (session) {
+        setSession(session);
+        setEmail(session.user.email ?? null);
+      }
+    });
+  
+    return () => {
+      authListener.unsubscribe();
+    };
   }, []);
 
-  /* ========================= ACTIONS ========================== */
+  /* ================= ACTIONS ================= */
 
   const handlePauseResume = async () => {
     if (!session?.user?.id) return;
@@ -139,7 +144,7 @@ export default function AccountPage() {
     }
   };
 
-  /* ========================= BADGE ========================== */
+  /* ================= BADGE ================= */
 
   const badge = (bg: string, color: string, text: string) => (
     <div
@@ -177,20 +182,20 @@ export default function AccountPage() {
     return null;
   };
 
-  /* ========================= RENDER ========================== */
+  /* ================= RENDER ================= */
 
   return (
     <div style={{ minHeight: "100vh", background: "#f4f1ea", padding: "40px 20px" }}>
-  <div
-    style={{
-      maxWidth: 640,
-      margin: "0 auto",
-      background: "white",
-      padding: 50,
-      borderRadius: 28,
-      boxShadow: "0 20px 60px rgba(0,0,0,0.06)",
-    }}
-  >
+      <div
+        style={{
+          maxWidth: 640,
+          margin: "0 auto",
+          background: "white",
+          padding: 50,
+          borderRadius: 28,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.06)",
+        }}
+      >
         <h2>Mitt konto</h2>
 
         <p>
@@ -228,11 +233,111 @@ export default function AccountPage() {
                     {formatDate(subscription.current_period_end)}
                   </p>
                 )}
+
+                {/* BUTTONS */}
+                <div style={{ marginTop: 30 }}>
+                  <button
+                    onClick={handlePortal}
+                    style={{
+                      width: "100%",
+                      padding: "14px",
+                      borderRadius: 12,
+                      border: "none",
+                      background: "#166534",
+                      color: "#fff",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      marginBottom: 16,
+                    }}
+                  >
+                    Hantera prenumeration
+                  </button>
+
+                  <div style={{ display: "flex", gap: 20 }}>
+                    <span
+                      onClick={handlePauseResume}
+                      style={{
+                        cursor: "pointer",
+                        textDecoration: "underline",
+                        color: "#2563eb",
+                      }}
+                    >
+                      {subscription.status === "paused"
+                        ? "Återuppta prenumeration"
+                        : "Pausa prenumeration"}
+                    </span>
+
+                    {subscription.status === "canceling" ? (
+                      <span
+                        onClick={handleUndoCancel}
+                        style={{
+                          cursor: "pointer",
+                          textDecoration: "underline",
+                        }}
+                      >
+                        Ångra avslut
+                      </span>
+                    ) : (
+                      <span
+                        onClick={() => setShowCancelModal(true)}
+                        style={{
+                          cursor: "pointer",
+                          textDecoration: "underline",
+                          color: "#b91c1c",
+                        }}
+                      >
+                        Avsluta prenumeration
+                      </span>
+                    )}
+                  </div>
+                </div>
               </>
             )}
           </>
         )}
       </div>
+
+      {/* MODAL */}
+      {showCancelModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+          }}
+        >
+          <div
+            style={{
+              maxWidth: 400,
+              padding: 28,
+              background: "white",
+              borderRadius: 20,
+            }}
+          >
+            <h3>Vill du verkligen avsluta?</h3>
+            <p>Du kan pausa istället och fortsätta senare.</p>
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={() => {
+                  setShowCancelModal(false);
+                  handlePauseResume();
+                }}
+              >
+                Pausa istället
+              </button>
+
+              <button onClick={handleCancelAtEnd}>
+                Avsluta vid periodens slut
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

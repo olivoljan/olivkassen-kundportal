@@ -54,35 +54,35 @@ export default function AccountPage() {
   /* ========================= LOAD DATA ========================== */
 
   useEffect(() => {
-    async function load() {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+    const load = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
   
-        if (!session) {
+      if (!session) {
+        // Wait a tick and try again
+        await new Promise(res => setTimeout(res, 100));
+        const retry = await supabase.auth.getSession();
+        if (!retry.data.session) {
           setLoading(false);
           return;
         }
-  
+        setSession(retry.data.session);
+        setEmail(retry.data.session.user.email ?? null);
+      } else {
         setSession(session);
         setEmail(session.user.email ?? null);
-  
-        const sub = await safeFetch("/api/stripe/subscription", {
-          userId: session.user.id,
-        });
-  
-        if (sub?.cancel_at_period_end) {
-          sub.status = "canceling";
-        }
-  
-        setSubscription(sub);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
       }
-    }
+  
+      const sub = await safeFetch("/api/stripe/subscription", {
+        userId: session?.user?.id,
+      });
+  
+      if (sub?.cancel_at_period_end) {
+        sub.status = "canceling";
+      }
+  
+      setSubscription(sub);
+      setLoading(false);
+    };
   
     load();
   }, []);

@@ -5,9 +5,10 @@ import { redirect } from "next/navigation";
 export default async function AuthCallback({
   searchParams,
 }: {
-  searchParams: { code?: string };
+  searchParams: Promise<{ code?: string }>;
 }) {
-  const cookieStore = await cookies(); // ✅ MUST be awaited
+  const params = await searchParams; // 🔥 REQUIRED in Next 16
+  const cookieStore = await cookies();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,8 +28,8 @@ export default async function AuthCallback({
     }
   );
 
-  if (searchParams.code) {
-    await supabase.auth.exchangeCodeForSession(searchParams.code);
+  if (params.code) {
+    await supabase.auth.exchangeCodeForSession(params.code);
   }
 
   redirect("/mina-sidor");

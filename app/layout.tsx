@@ -1,7 +1,7 @@
 
 
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Bricolage_Grotesque } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,6 +12,12 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage-grotesque",
+  subsets: ["latin"],
+  weight: ["500"],
 });
 
 export const metadata: Metadata = {
@@ -26,30 +32,32 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="sv" suppressHydrationWarning>
-      <body>
-  <div
-    style={{
-      minHeight: "100vh",
-      background: "#fafafa",
-      display: "flex",
-      justifyContent: "center",
-      padding: "40px 16px",
-    }}
-  >
-    <div
-      style={{
-        width: "100%",
-        maxWidth: "720px",
-        background: "#fff",
-        padding: "32px",
-        borderRadius: "12px",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.05)",
-      }}
-    >
-      {children}
-    </div>
-  </div>
-</body>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} ${bricolage.variable}`}
+      >
+        <div
+          style={{
+            minHeight: "100vh",
+            background: "#f4f1ea",
+            display: "flex",
+            justifyContent: "center",
+            padding: "40px 16px",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "720px",
+              background: "#fff",
+              padding: "32px",
+              borderRadius: "12px",
+              boxShadow: "0 10px 30px rgba(0, 0, 0, 0.05)",
+            }}
+          >
+            {children}
+          </div>
+        </div>
+      </body>
     </html>
   );
 }

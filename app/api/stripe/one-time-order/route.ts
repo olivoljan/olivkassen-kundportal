@@ -6,8 +6,11 @@ import { createClient } from "@supabase/supabase-js";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
 export async function POST(req: NextRequest) {
+  let userId: string | undefined;
+
   try {
-    const { userId } = await req.json();
+    const body = await req.json();
+    userId = body.userId;
 
     if (!userId) {
       return NextResponse.json({ error: "Missing userId" }, { status: 400 });

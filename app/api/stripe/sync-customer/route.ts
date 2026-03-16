@@ -11,10 +11,13 @@ const supabase = createClient(
 );
 
 export async function POST(req: Request) {
+  let userId: string | undefined;
+
   try {
     console.log("🔄 Stripe customer sync started");
 
-    const { userId } = await req.json();
+    const body = await req.json();
+    userId = body.userId;
 
     if (!userId) {
       return NextResponse.json(

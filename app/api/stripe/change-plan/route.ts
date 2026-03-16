@@ -13,8 +13,12 @@ const supabase = createClient(
 );
 
 export async function POST(req: Request) {
+  let userId: string | undefined;
+
   try {
-    const { userId, interval } = await req.json();
+    const body = await req.json();
+    userId = body.userId;
+    const { interval } = body;
 
     if (!userId || !interval) {
       return NextResponse.json(

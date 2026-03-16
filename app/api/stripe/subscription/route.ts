@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import * as Sentry from "@sentry/nextjs";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
 export async function POST(req: NextRequest) {
+  let userId: string | undefined;
+
   try {
-    const { userId } = await req.json();
+    const body = await req.json();
+    userId = body.userId;
 
     if (!userId) {
       return NextResponse.json({ status: "none" });
@@ -27,111 +31,153 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "none" });
     }
 
-        /* =========================
-      GET SUBSCRIPTION (ALL)
+    /* =========================
+       FETCH SUBSCRIPTIONS
+       EXPAND PRODUCT METADATA
     ========================== */
 
     const subscriptions = await stripe.subscriptions.list({
       customer: profile.stripe_customer_id,
       status: "all",
-      expand: ["data.items.data.price"],
-      limit: 10, // get more than 1
+      expand: ["data.items.data.price", "data.schedule"],
+      limit: 10,
     });
 
     if (!subscriptions.data.length) {
       return NextResponse.json({ status: "none" });
     }
 
-    /*
-      Pick the most relevant subscription:
-      - active
-      - trialing
-      - past_due
-      - canceling
-      - or most recent
-    */
+    const subscription = subscriptions.data.find(
+      sub =>
+        sub.status === "active" ||
+        sub.status === "trialing" ||
+        sub.status === "past_due" ||
+        sub.cancel_at_period_end === true
+    );
 
-    const subscription =
-      subscriptions.data.find(
-        (sub) =>
-          sub.status === "active" ||
-          sub.status === "trialing" ||
-          sub.cancel_at_period_end === true
-      ) || subscriptions.data[0];
+    if (!subscription) {
+      return NextResponse.json({ status: "none" });
+    }
 
     const item = subscription.items.data[0];
 
-          /* =========================
-        DETERMINE STATUS
-      ========================== */
+    // Run product, scheduled price (if needed), and customer in parallel
+    const productId = typeof item.price.product === "string"
+      ? item.price.product
+      : (item.price.product as any).id;
 
-      let status: string = subscription.status;
+    const scheduleObj = (subscription as any).schedule;
+    const scheduledPriceId = (
+      scheduleObj &&
+      typeof scheduleObj === "object" &&
+      Array.isArray(scheduleObj.phases) &&
+      scheduleObj.phases.length > 0
+    )
+      ? scheduleObj.phases[scheduleObj.phases.length - 1]?.items?.[0]?.price
+      : null;
 
-      // Paused
-      if (subscription.pause_collection) {
-        status = "paused";
-      }
+    const [product, scheduledPrice, customer] = await Promise.all([
+      stripe.products.retrieve(productId),
+      scheduledPriceId && typeof scheduledPriceId === "string" && scheduledPriceId !== item.price.id
+        ? stripe.prices.retrieve(scheduledPriceId)
+        : Promise.resolve(null),
+      stripe.customers.retrieve(profile.stripe_customer_id),
+    ]);
 
-      // Canceling at period end
-      if (subscription.cancel_at_period_end) {
-        status = "canceling";
-      }
+    const volume = product.metadata?.volume ?? null;
 
-      // Fully canceled
-      if (subscription.status === "canceled") {
-        status = "canceled";
-      }
+    let displayIntervalCount: number | null = item.price.recurring?.interval_count ?? null;
+    let displayInterval: string | null = item.price.recurring?.interval ?? null;
+    let displayPriceId: string = item.price.id;
+
+    if (scheduledPrice) {
+      displayIntervalCount = scheduledPrice.recurring?.interval_count ?? displayIntervalCount;
+      displayInterval = scheduledPrice.recurring?.interval ?? displayInterval;
+      displayPriceId = scheduledPriceId as string;
+    }
 
     /* =========================
-       GET PRODUCT
+       DETERMINE STATUS
     ========================== */
 
-    let productName = "Unknown product";
+    let status: string = subscription.status;
 
-    if (typeof item.price.product === "string") {
-      const product = await stripe.products.retrieve(
-        item.price.product
+    if (subscription.pause_collection) {
+      status = "paused";
+    }
+
+    if (subscription.cancel_at_period_end) {
+      status = "canceling";
+    }
+
+    // Check if schedule has end_behavior = "cancel" (scheduled cancellation)
+    if (
+      scheduleObj &&
+      typeof scheduleObj === "object" &&
+      scheduleObj.end_behavior === "cancel"
+    ) {
+      status = "canceling";
+    }
+
+    if (subscription.status === "canceled") {
+      status = "canceled";
+    }
+
+    /* =========================
+       CURRENT PERIOD END
+    ========================== */
+
+    let currentPeriodEnd: number | null =
+      (subscription as any).current_period_end ?? null;
+
+    // For scheduled subscriptions, use the last phase end_date
+    // as that represents the actual next delivery date
+    if (scheduleObj && typeof scheduleObj === "object" && Array.isArray(scheduleObj.phases)) {
+      const now = Math.floor(Date.now() / 1000);
+      const currentPhase = scheduleObj.phases.find(
+        (p: any) => p.start_date <= now && p.end_date >= now
       );
-      productName = product.name;
+      if (currentPhase?.end_date) {
+        currentPeriodEnd = currentPhase.end_date;
+      }
     }
 
     /* =========================
-       GET CUSTOMER INFO
-    ========================== */
-
-    const customerRaw = await stripe.customers.retrieve(
-      profile.stripe_customer_id
-    );
-
-    let customer_name = null;
-    let customer_address = null;
-
-    if (!("deleted" in customerRaw)) {
-      customer_name = customerRaw.name ?? null;
-      customer_address = customerRaw.address ?? null;
-    }
-
-    /* =========================
-       RETURN DATA
+       RETURN CLEAN DATA
     ========================== */
 
     return NextResponse.json({
       status,
-      product: productName,
-      interval: item.price.recurring?.interval ?? null,
-      interval_count: item.price.recurring?.interval_count ?? null,
+
+      // Stripe data
+      price_id: displayPriceId,
+      interval: displayInterval,
+      interval_count: displayIntervalCount,
       amount: item.price.unit_amount ?? null,
       currency: item.price.currency ?? null,
-      current_period_end:
-  "current_period_end" in subscription
-    ? subscription.current_period_end
-    : null,
-      customer_name,
-      customer_address,
+      current_period_end: currentPeriodEnd,
+
+      // Product data
+      product_name: null,
+      volume,
+
+      // Customer info (optional)
+      customer_name: subscription.customer ?? null,
+      schedule: subscription.schedule ? true : null,
+      address:
+        (customer as Stripe.Customer).shipping?.address ??
+        (customer as Stripe.Customer).address ??
+        null,
     });
 
   } catch (err: any) {
     console.error("SUBSCRIPTION ERROR:", err);
+    Sentry.captureException(err, {
+      extra: {
+        userId,
+        route: "/api/stripe/subscription",
+      },
+    });
     return NextResponse.json(
       { error: err.message },
       { status: 500 }

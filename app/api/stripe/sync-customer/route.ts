@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import * as Sentry from "@sentry/nextjs";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+  process.env.SUPABASE_SERVICE_ROLE_KEY as string
 );
 
 export async function POST(req: Request) {
   try {
+    console.log("🔄 Stripe customer sync started");
+
     const { userId } = await req.json();
 
     if (!userId) {
@@ -21,7 +23,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1️⃣ Get profile
+    /* =========================
+       1️⃣ GET SUPABASE PROFILE
+    ========================== */
+
     const { data: profile, error } = await supabase
       .from("profiles")
       .select("email, stripe_customer_id")
@@ -35,6 +40,10 @@ export async function POST(req: Request) {
       );
     }
 
+    if (profile.stripe_customer_id) {
+      return NextResponse.json({ status: "exists" });
+    }
+
     if (!profile.email) {
       return NextResponse.json(
         { error: "Profile email missing" },
@@ -42,50 +51,128 @@ export async function POST(req: Request) {
       );
     }
 
-    let customer;
+    let selectedCustomer: Stripe.Customer | null = null;
 
-    // 2️⃣ If we already have customer ID → verify it exists
+    /* =========================
+       2️⃣ VERIFY EXISTING ID
+    ========================== */
+
     if (profile.stripe_customer_id) {
       try {
-        customer = await stripe.customers.retrieve(
+        const existing = await stripe.customers.retrieve(
           profile.stripe_customer_id.trim()
         );
 
-        // If Stripe returns deleted customer object
-        if ((customer as any).deleted) {
-          customer = null;
+        if (!("deleted" in existing)) {
+          selectedCustomer = existing;
+          console.log("✅ Existing Stripe customer verified");
         }
       } catch {
-        customer = null;
+        console.log("⚠️ Existing Stripe ID invalid, re-syncing...");
       }
     }
 
-    // 3️⃣ If no valid customer → search by email
-    if (!customer) {
-      const existing = await stripe.customers.list({
+    /* =========================
+       3️⃣ SEARCH BY EMAIL IF NEEDED
+    ========================== */
+
+    if (!selectedCustomer) {
+      const customers = await stripe.customers.list({
         email: profile.email,
-        limit: 1,
+        limit: 100,
       });
 
-      if (existing.data.length > 0) {
-        customer = existing.data[0];
-      } else {
-        customer = await stripe.customers.create({
+      if (!customers.data.length) {
+        console.log("⚠️ No Stripe customer found, creating new one...");
+
+        selectedCustomer = await stripe.customers.create({
           email: profile.email,
         });
-      }
+      } else {
+        console.log(
+          `🔎 Found ${customers.data.length} Stripe customers`
+        );
 
-      // Save correct ID to Supabase
-      await supabase
-        .from("profiles")
-        .update({ stripe_customer_id: customer.id })
-        .eq("id", userId);
+        let bestPriority = 999;
+
+        const priorityMap: Record<string, number> = {
+          active: 1,
+          trialing: 2,
+          canceling: 3,
+          paused: 4,
+          past_due: 5,
+          canceled: 6,
+        };
+
+        for (const customer of customers.data) {
+          const subs = await stripe.subscriptions.list({
+            customer: customer.id,
+            status: "all",
+            limit: 10,
+          });
+
+          if (!subs.data.length) continue;
+
+          for (const sub of subs.data) {
+            let status: string = sub.status;
+
+            if (sub.pause_collection) status = "paused";
+            if (sub.cancel_at_period_end) status = "canceling";
+
+            const priority = priorityMap[status] ?? 999;
+
+            if (priority < bestPriority) {
+              bestPriority = priority;
+              selectedCustomer = customer;
+            }
+          }
+        }
+
+        // Fallback if customers exist but no subs
+        if (!selectedCustomer) {
+          selectedCustomer = customers.data[0];
+        }
+      }
     }
 
+    /* =========================
+       4️⃣ SAVE TO SUPABASE
+    ========================== */
+
+    if (!selectedCustomer) {
+      return NextResponse.json(
+        { error: "Unable to resolve Stripe customer" },
+        { status: 500 }
+      );
+    }
+
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({ stripe_customer_id: selectedCustomer.id })
+      .eq("id", userId);
+
+    if (updateError) {
+      return NextResponse.json(
+        { error: "Failed to update Supabase profile" },
+        { status: 500 }
+      );
+    }
+
+    console.log("✅ Stripe customer synced:", selectedCustomer.id);
+
     return NextResponse.json({
-      customerId: customer.id,
+      status: "synced",
+      stripe_customer_id: selectedCustomer.id,
     });
+
   } catch (err: any) {
+    console.error("💥 Sync error:", err);
+    Sentry.captureException(err, {
+      extra: {
+        userId,
+        route: "/api/stripe/sync-customer",
+      },
+    });
     return NextResponse.json(
       { error: err.message ?? "Unknown error" },
       { status: 500 }

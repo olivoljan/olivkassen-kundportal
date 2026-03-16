@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
-});
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
 export async function POST(req: NextRequest) {
+  let userId: string | undefined;
+
   try {
-    const { userId, undo } = await req.json();
+    const body = await req.json();
+    userId = body.userId;
+    const { undo } = body;
 
     if (!userId) {
       return NextResponse.json(
@@ -34,11 +38,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get latest subscription (any status)
+    /* =========================
+       FETCH SUBSCRIPTIONS SAFELY
+    ========================== */
+
     const subscriptions = await stripe.subscriptions.list({
       customer: profile.stripe_customer_id,
       status: "all",
-      limit: 1,
+      limit: 10,
     });
 
     if (!subscriptions.data.length) {
@@ -48,37 +55,91 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const subscription = subscriptions.data[0];
+    // Prevent multiple active subscriptions
+    const activeSubs = subscriptions.data.filter(
+      sub =>
+        sub.status === "active" ||
+        sub.status === "trialing" ||
+        sub.status === "past_due"
+    );
+
+    if (activeSubs.length > 1) {
+      console.error("Multiple active subscriptions detected");
+      return NextResponse.json(
+        { error: "Subscription conflict" },
+        { status: 500 }
+      );
+    }
+
+    const subscription = subscriptions.data.find(
+      sub =>
+        sub.status === "active" ||
+        sub.status === "trialing" ||
+        sub.status === "past_due" ||
+        sub.cancel_at_period_end === true
+    );
+
+    if (!subscription) {
+      return NextResponse.json(
+        { error: "No valid subscription found" },
+        { status: 400 }
+      );
+    }
+
+    const scheduleId = typeof subscription.schedule === "string"
+      ? subscription.schedule
+      : (subscription.schedule as any)?.id ?? null;
 
     /* =========================
        UNDO CANCEL
     ========================== */
-    if (undo) {
-      const updated = await stripe.subscriptions.update(subscription.id, {
-        cancel_at_period_end: false,
-      });
 
-      return NextResponse.json({
-        status: updated.status,
-      });
+    if (undo) {
+      if (scheduleId) {
+        await stripe.subscriptionSchedules.update(scheduleId, {
+          end_behavior: "release",
+        });
+      } else {
+        await stripe.subscriptions.update(subscription.id, {
+          cancel_at_period_end: false,
+        });
+      }
+
+      return NextResponse.json({ status: "active" });
     }
 
     /* =========================
        CANCEL AT PERIOD END
     ========================== */
 
-    const updated = await stripe.subscriptions.update(subscription.id, {
-      cancel_at_period_end: true,
-    });
+    if (scheduleId) {
+      await stripe.subscriptionSchedules.update(scheduleId, {
+        end_behavior: "cancel",
+      });
+    } else {
+      await stripe.subscriptions.update(subscription.id, {
+        cancel_at_period_end: true,
+      });
+    }
 
     return NextResponse.json({
       status: "canceling",
-      cancel_at_period_end: updated.cancel_at_period_end ?? true,
     });
 
   } catch (err: any) {
     console.error("CANCEL ERROR:", err);
-
+    console.error("CANCEL ERROR DETAILS:", {
+      message: err?.message,
+      type: err?.type,
+      code: err?.code,
+      raw: err?.raw,
+    });
+    Sentry.captureException(err, {
+      extra: {
+        userId,
+        route: "/api/stripe/cancel",
+      },
+    });
     return NextResponse.json(
       { error: err.message || "Cancel failed" },
       { status: 500 }

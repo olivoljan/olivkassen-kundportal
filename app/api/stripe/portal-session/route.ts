@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import * as Sentry from "@sentry/nextjs";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
 
@@ -47,6 +48,12 @@ export async function POST(req: NextRequest) {
 
   } catch (err: any) {
     console.error("PORTAL ERROR:", err);
+    Sentry.captureException(err, {
+      extra: {
+        userId,
+        route: "/api/stripe/portal-session",
+      },
+    });
     return NextResponse.json(
       { error: err.message },
       { status: 500 }

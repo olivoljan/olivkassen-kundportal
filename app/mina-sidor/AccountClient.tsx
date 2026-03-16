@@ -110,6 +110,8 @@ export default function AccountClient() {
         safeFetch("/api/stripe/invoices", { userId: session.user.id }),
       ]);
 
+      console.log("sub response:", sub); // ADD THIS LINE
+
       if (sub?.cancel_at_period_end) {
         sub.status = "canceling";
       }

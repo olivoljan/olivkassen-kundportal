@@ -59,6 +59,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "none" });
     }
 
+    console.log("SUB RAW FIELDS:", JSON.stringify({
+      current_period_end: (subscription as any).current_period_end,
+      period_end: (subscription as any).period_end,
+      billing_cycle_anchor: (subscription as any).billing_cycle_anchor,
+      keys: Object.keys(subscription as any).filter(k => k.includes('period') || k.includes('end') || k.includes('anchor'))
+    }));
+
 
     const item = subscription.items.data[0];
 

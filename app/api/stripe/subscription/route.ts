@@ -59,6 +59,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "none" });
     }
 
+    const fullSubscription = await stripe.subscriptions.retrieve(subscription.id);
+    const rawSub = fullSubscription as any;
+
     const item = subscription.items.data[0];
 
     // Run product, scheduled price (if needed), and customer in parallel
@@ -127,15 +130,12 @@ export async function POST(req: NextRequest) {
        CURRENT PERIOD END
     ========================== */
 
-    const rawSub = subscription as any;
     let currentPeriodEnd: number | null =
       typeof rawSub.current_period_end === "number"
         ? rawSub.current_period_end
         : typeof rawSub.current_period_end === "string"
         ? parseInt(rawSub.current_period_end, 10)
         : null;
-
-    console.log("current_period_end raw value:", rawSub.current_period_end, typeof rawSub.current_period_end);
 
     // For scheduled subscriptions, use the last phase end_date
     // as that represents the actual next delivery date

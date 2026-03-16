@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     const subscriptions = await stripe.subscriptions.list({
       customer: profile.stripe_customer_id,
       status: "all",
-      expand: ["data.items.data.price", "data.schedule"],
+      expand: ["data.items.data.price", "data.schedule", "data.default_payment_method"],
       limit: 10,
     });
 
@@ -59,9 +59,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "none" });
     }
 
-    const rawSub = await stripe.subscriptions.retrieve(subscription.id, {}, {
-      headers: { 'Stripe-Version': '2023-10-16' }
-    } as any) as any;
 
     const item = subscription.items.data[0];
 
@@ -131,7 +128,13 @@ export async function POST(req: NextRequest) {
        CURRENT PERIOD END
     ========================== */
 
-    let currentPeriodEnd: number | null = rawSub.current_period_end ?? null;
+    let currentPeriodEnd: number | null = null;
+    const subData = subscription as any;
+    if (typeof subData.current_period_end === 'number') {
+      currentPeriodEnd = subData.current_period_end;
+    } else if (subData.current_period_end) {
+      currentPeriodEnd = parseInt(String(subData.current_period_end), 10);
+    }
 
     // For scheduled subscriptions, use the last phase end_date
     // as that represents the actual next delivery date

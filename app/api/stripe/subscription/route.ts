@@ -127,8 +127,15 @@ export async function POST(req: NextRequest) {
        CURRENT PERIOD END
     ========================== */
 
+    const rawSub = subscription as any;
     let currentPeriodEnd: number | null =
-      (subscription as any).current_period_end ?? null;
+      typeof rawSub.current_period_end === "number"
+        ? rawSub.current_period_end
+        : typeof rawSub.current_period_end === "string"
+        ? parseInt(rawSub.current_period_end, 10)
+        : null;
+
+    console.log("current_period_end raw value:", rawSub.current_period_end, typeof rawSub.current_period_end);
 
     // For scheduled subscriptions, use the last phase end_date
     // as that represents the actual next delivery date

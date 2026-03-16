@@ -11,8 +11,8 @@ export default function Home() {
   >("login");
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-4 bg-background">
-      <div className="w-full max-w-[420px] bg-card rounded-2xl shadow-sm p-8 space-y-6">
+    <main className="min-h-screen flex items-center justify-center px-4 bg-[#ECE6DF]">
+      <div className="w-full max-w-[420px] bg-card rounded-3xl shadow-sm p-10 space-y-6">
 
         {/* ===== SENT STATE ===== */}
         {state === "sent" && (
@@ -55,7 +55,7 @@ export default function Home() {
 
             <button
               onClick={() => setState("login")}
-              className="w-full bg-primary text-primary-foreground rounded-2xl py-4 font-semibold hover:opacity-90 transition"
+              className="w-full bg-black text-white rounded-2xl py-4 font-semibold hover:opacity-90 transition"
             >
               Skicka ny länk
             </button>
@@ -116,13 +116,13 @@ export default function Home() {
                   type="email"
                   placeholder="din@email.se"
                   required
-                  className="w-full border border-border rounded-xl px-4 py-3 bg-background"
+                  className="w-full rounded-full px-6 py-4 bg-[#ECE6DF] text-base focus:outline-none focus:ring-2 focus:ring-black transition"
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full bg-primary text-primary-foreground rounded-2xl py-4 font-semibold hover:opacity-90 transition"
+                className="w-full bg-black text-white rounded-2xl py-4 font-semibold hover:opacity-90 transition"
               >
                 Skicka inloggningslänk
               </button>

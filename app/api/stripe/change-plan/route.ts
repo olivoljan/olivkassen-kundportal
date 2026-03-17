@@ -58,81 +58,73 @@ export async function POST(req: Request) {
 
     const customerId = profile.stripe_customer_id;
 
-/* ================= GET ACTIVE SUBSCRIPTION ================= */
+    /* ================= GET ACTIVE SUBSCRIPTION ================= */
 
-const subscriptions = await stripe.subscriptions.list({
-  customer: customerId,
-  status: "active",
-  limit: 1,
-});
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "active",
+      limit: 1,
+    });
 
-if (!subscriptions.data.length) {
-  return NextResponse.json(
-    { error: "Subscription must be active to change plan." },
-    { status: 400 }
-  );
-}
+    if (!subscriptions.data.length) {
+      return NextResponse.json(
+        { error: "Subscription must be active to change plan." },
+        { status: 400 }
+      );
+    }
 
-const subscription = await stripe.subscriptions.retrieve(
-  subscriptions.data[0].id,
-  {
-    expand: ["items.data.price", "schedule", "latest_invoice"]
-  }
-) as any;
+    const subscription = await stripe.subscriptions.retrieve(
+      subscriptions.data[0].id,
+      {
+        expand: ["items.data.price", "schedule", "latest_invoice"],
+      }
+    ) as any;
 
-if (DEBUG) console.log("SUB PERIOD", subscription.current_period_start, subscription.current_period_end, subscription.status);
-if (DEBUG) console.log("ANCHOR", subscription.billing_cycle_anchor);
-if (DEBUG) console.log("START", subscription.start_date);
-if (DEBUG) console.log("KEYS", Object.keys(subscription));
+    if (DEBUG) console.log("SUB STATUS", subscription.status);
+    if (DEBUG) console.log("ANCHOR", subscription.billing_cycle_anchor);
+    if (DEBUG) console.log("START", subscription.start_date);
 
-/* ================= PERIOD SOURCE ================= */
+    /* ================= BLOCK IF PAUSED ================= */
 
-const periodStart = subscription.billing_cycle_anchor;
+    if (subscription.pause_collection) {
+      return NextResponse.json(
+        { error: "Cannot change plan while subscription is paused." },
+        { status: 400 }
+      );
+    }
 
-if (DEBUG) console.log("period", periodStart);
+    const item = subscription.items.data[0];
 
+    if (!item) {
+      return NextResponse.json(
+        { error: "Subscription item missing." },
+        { status: 400 }
+      );
+    }
 
-/* ================= BLOCK IF PAUSED ================= */
+    const currentIntervalCount = item.price.recurring?.interval_count;
 
-if (subscription.pause_collection) {
-  return NextResponse.json(
-    { error: "Cannot change plan while subscription is paused." },
-    { status: 400 }
-  );
-}
+    if (!currentIntervalCount) {
+      return NextResponse.json(
+        { error: "Current billing interval not found." },
+        { status: 400 }
+      );
+    }
 
-const item = subscription.items.data[0];
+    const scheduleObj =
+      typeof subscription.schedule === "object" && subscription.schedule !== null
+        ? subscription.schedule
+        : null;
 
-if (!item) {
-  return NextResponse.json(
-    { error: "Subscription item missing." },
-    { status: 400 }
-  );
-}
+    const scheduledIntervalCount = scheduleObj?.phases?.length
+      ? scheduleObj.phases[scheduleObj.phases.length - 1]?.items?.[0]?.price
+        ? await stripe.prices
+            .retrieve(scheduleObj.phases[scheduleObj.phases.length - 1].items[0].price)
+            .then((p) => p.recurring?.interval_count ?? currentIntervalCount)
+        : currentIntervalCount
+      : currentIntervalCount;
 
-const currentIntervalCount = item.price.recurring?.interval_count;
-
-if (!currentIntervalCount) {
-  return NextResponse.json(
-    { error: "Current billing interval not found." },
-    { status: 400 }
-  );
-}
-
-const scheduleObj = typeof subscription.schedule === "object"
-  && subscription.schedule !== null
-  ? subscription.schedule
-  : null;
-
-const scheduledIntervalCount = scheduleObj?.phases?.length
-  ? scheduleObj.phases[scheduleObj.phases.length - 1]?.items?.[0]?.price
-      ? await stripe.prices.retrieve(
-          scheduleObj.phases[scheduleObj.phases.length - 1].items[0].price
-        ).then(p => p.recurring?.interval_count ?? currentIntervalCount)
-      : currentIntervalCount
-  : currentIntervalCount;
-
-const effectiveIntervalCount = scheduledIntervalCount;
+    const effectiveIntervalCount = scheduledIntervalCount;
 
     /* ================= FIND TARGET PRICE ================= */
 
@@ -170,8 +162,7 @@ const effectiveIntervalCount = scheduledIntervalCount;
     let resolvedNewPriceId: string | null = newPrice?.id ?? null;
 
     if (!resolvedNewPriceId) {
-      // Fallback: look up via legacy price map using product metadata volume
-      const product = await stripe.products.retrieve(productId) as any;
+      const product = (await stripe.products.retrieve(productId)) as any;
       const volume: string = (product.metadata?.volume ?? "").toLowerCase();
       if (volume) {
         const legacyKey = `${volume}-${interval}-legacy`;
@@ -191,161 +182,203 @@ const effectiveIntervalCount = scheduledIntervalCount;
 
     const resolvedNewPrice = newPrice ?? { id: resolvedNewPriceId };
 
-   /* ================= RATE LIMITING ================= */
+    /* ================= RATE LIMITING ================= */
 
-const now = Math.floor(Date.now() / 1000);
+    const now = Math.floor(Date.now() / 1000);
 
-const TEST_EMAILS = (process.env.TEST_EMAILS ?? "").split(",").map(e => e.trim());
-const customer = await stripe.customers.retrieve(customerId) as Stripe.Customer;
-const isTestUser = TEST_EMAILS.includes((customer as any).email ?? "");
+    const TEST_EMAILS = (process.env.TEST_EMAILS ?? "").split(",").map((e) => e.trim());
+    const customer = (await stripe.customers.retrieve(customerId)) as Stripe.Customer;
+    const isTestUser = TEST_EMAILS.includes((customer as any).email ?? "");
 
-if (!isTestUser) {
-  const meta = subscription.metadata ?? {};
-  const windowStart = parseInt(meta.plan_change_window_start ?? "0");
-  const changeCount = parseInt(meta.plan_change_count ?? "0");
-  const windowDuration = 24 * 60 * 60;
+    if (!isTestUser) {
+      const meta = subscription.metadata ?? {};
+      const windowStart = parseInt(meta.plan_change_window_start ?? "0");
+      const changeCount = parseInt(meta.plan_change_count ?? "0");
+      const windowDuration = 24 * 60 * 60;
+      const withinWindow = now - windowStart < windowDuration;
+      const limitReached = withinWindow && changeCount >= 2;
 
-  const withinWindow = (now - windowStart) < windowDuration;
-  const limitReached = withinWindow && changeCount >= 2;
+      if (limitReached) {
+        return NextResponse.json(
+          {
+            error:
+              "Du har bytt abonnemang 2 gånger idag. Vänta till imorgon för att göra fler ändringar.",
+          },
+          { status: 429 }
+        );
+      }
+    }
 
-  if (limitReached) {
-    return NextResponse.json(
-      { error: "Du har bytt abonnemang 2 gånger idag. Vänta till imorgon för att göra fler ändringar." },
-      { status: 429 }
-    );
-  }
-}
+    /* ================= PERIOD SOURCE (Bug 1 fix) =================
+       Stripe API 2026-02-25.clover removed current_period_end.
+       - periodStart: use billing_cycle_anchor (per docs)
+       - periodEnd:   use upcoming invoice next_payment_attempt
+    ================================================================ */
+
+    const periodStart = subscription.billing_cycle_anchor;
+
+    const upcomingInvoice = await stripe.invoices
+      .createPreview({ customer: customerId })
+      .catch(() => null);
+
+    const periodEnd: number =
+      (upcomingInvoice as any)?.next_payment_attempt ??
+      (upcomingInvoice as any)?.due_date ??
+      // Fallback: anchor + current interval in seconds (last resort only)
+      periodStart + currentIntervalCount * 30 * 24 * 60 * 60;
+
+    if (DEBUG) console.log("periodStart (anchor)", periodStart);
+    if (DEBUG) console.log("periodEnd (upcoming invoice)", periodEnd);
 
     /* ================= FORWARD LOGIC ================= */
 
-    const existingSchedule =
+    const existingScheduleId =
       typeof subscription.schedule === "string"
         ? subscription.schedule
-        : subscription.schedule?.id;
+        : subscription.schedule?.id ?? null;
 
-    const isForward =
-      targetIntervalCount > effectiveIntervalCount;
+    const isForward = targetIntervalCount > effectiveIntervalCount;
 
     let newEnd: number | null = null;
 
     if (isForward) {
-
-      const periodStart = subscription.billing_cycle_anchor;
-      const anchorDate = new Date(periodStart * 1000);
-      anchorDate.setMonth(anchorDate.getMonth() + (item.price.recurring?.interval_count ?? 1));
-      const periodEnd = Math.floor(anchorDate.getTime() / 1000);
-
-    
       const totalCurrentPeriod = Math.max(periodEnd - periodStart, 1);
-    
       const remainingTime = periodEnd - now;
-    
       const usedTime = totalCurrentPeriod - remainingTime;
-    
       const newPeriodSeconds =
-        totalCurrentPeriod *
-        (targetIntervalCount / effectiveIntervalCount);
-    
+        totalCurrentPeriod * (targetIntervalCount / effectiveIntervalCount);
       const newRemaining = newPeriodSeconds - usedTime;
-    
       newEnd = now + Math.max(newRemaining, 1);
-    }    
 
-    if (DEBUG) console.log("periodStart", periodStart);
-    if (DEBUG) console.log("newEnd", newEnd);
+      if (DEBUG) console.log("totalCurrentPeriod", totalCurrentPeriod);
+      if (DEBUG) console.log("usedTime", usedTime);
+      if (DEBUG) console.log("newPeriodSeconds", newPeriodSeconds);
+      if (DEBUG) console.log("newEnd", newEnd);
+    }
 
+    if (DEBUG) console.log("targetIntervalCount", targetIntervalCount);
+    if (DEBUG) console.log("effectiveIntervalCount", effectiveIntervalCount);
+    if (DEBUG) console.log("isForward", isForward);
+    if (DEBUG) console.log("existingScheduleId", existingScheduleId);
 
     /* ================= FORWARD UPGRADE ================= */
 
-if (DEBUG) console.log("targetIntervalCount", targetIntervalCount);
-if (DEBUG) console.log("currentIntervalCount", currentIntervalCount);
-if (DEBUG) console.log("isForward", isForward);
-if (DEBUG) console.log("newEnd", newEnd);
+    if (isForward && newEnd) {
+      if (DEBUG) console.log("FORWARD UPGRADE");
 
-if (isForward && newEnd) {
+      // Bug 2 fix: always update schedule with recomputed phases,
+      // whether one already exists or needs to be created.
+      // PRD edge case: "Forward inside existing schedule phase —
+      // Must recompute based on current period start."
 
-  if (DEBUG) console.log("newEnd", newEnd);
-  if (DEBUG) console.log("FORWARD UPGRADE");
+      if (existingScheduleId) {
+        if (DEBUG) console.log("UPDATING EXISTING SCHEDULE", existingScheduleId);
 
-  if (DEBUG) console.log("EXISTING SCHEDULE", existingSchedule, typeof subscription.schedule);
-  if (DEBUG) console.log("RAW SCHEDULE", JSON.stringify(subscription.schedule));
+        await stripe.subscriptionSchedules.update(existingScheduleId, {
+          end_behavior: "release",
+          phases: [
+            {
+              start_date: periodStart,
+              end_date: Math.round(newEnd),
+              items: [{ price: item.price.id, quantity: 1 }],
+              proration_behavior: "none" as Stripe.SubscriptionSchedule.Phase.ProrationBehavior,
+            },
+            {
+              start_date: Math.round(newEnd),
+              items: [{ price: resolvedNewPrice.id, quantity: 1 }],
+              proration_behavior: "none" as Stripe.SubscriptionSchedule.Phase.ProrationBehavior,
+            },
+          ],
+        });
+      } else {
+        if (DEBUG) console.log("CREATING NEW SCHEDULE");
 
-  if (existingSchedule) {
-    // Schedule already attached — verify it's active and skip
-    if (DEBUG) console.log("SCHEDULE ALREADY EXISTS, SKIPPING UPDATE");
-  } else {
-    const schedule = await stripe.subscriptionSchedules.create({
-      from_subscription: subscription.id,
+        // Bug 4 fix: clear cancel_at_period_end before attaching schedule.
+        // Locked rule: "cancel_at_period_end is always removed when changing plan."
+        if (subscription.cancel_at_period_end) {
+          await stripe.subscriptions.update(subscription.id, {
+            cancel_at_period_end: false,
+            payment_behavior: "default_incomplete" as any,
+          });
+        }
+
+        const schedule = await stripe.subscriptionSchedules.create({
+          from_subscription: subscription.id,
+        });
+
+        if (DEBUG) console.log("SCHEDULE CREATED", schedule.id);
+
+        await stripe.subscriptionSchedules.update(schedule.id, {
+          end_behavior: "release",
+          phases: [
+            {
+              start_date: periodStart,
+              end_date: Math.round(newEnd),
+              items: [{ price: item.price.id, quantity: 1 }],
+              proration_behavior: "none" as Stripe.SubscriptionSchedule.Phase.ProrationBehavior,
+            },
+            {
+              start_date: Math.round(newEnd),
+              items: [{ price: resolvedNewPrice.id, quantity: 1 }],
+              proration_behavior: "none" as Stripe.SubscriptionSchedule.Phase.ProrationBehavior,
+            },
+          ],
+        });
+      }
+    }
+
+    /* ================= DOWNGRADE / SAME LEVEL ================= */
+
+    else if (!isForward) {
+      if (DEBUG) console.log("DOWNGRADE / SAME LEVEL");
+
+      if (existingScheduleId) {
+        await stripe.subscriptionSchedules.release(existingScheduleId);
+      }
+
+      await stripe.subscriptions.update(subscription.id, {
+        items: [{ id: item.id, price: resolvedNewPrice.id }],
+        proration_behavior: "none",
+        cancel_at_period_end: false,      // Bug 4: always clear on change
+        payment_behavior: "default_incomplete" as any,  // Klarna safety
+        billing_cycle_anchor: "unchanged" as any,
+      });
+    }
+
+    /* ================= RATE LIMIT METADATA UPDATE ================= */
+
+    // Bug 3 fix: include payment_behavior on this update too,
+    // so Stripe never attempts an immediate Klarna charge.
+    if (!isTestUser) {
+      const meta = subscription.metadata ?? {};
+      const windowStart = parseInt(meta.plan_change_window_start ?? "0");
+      const changeCount = parseInt(meta.plan_change_count ?? "0");
+      const withinWindow = now - windowStart < 24 * 60 * 60;
+      const newCount = withinWindow ? changeCount + 1 : 1;
+      const newWindowStart = withinWindow ? windowStart : now;
+
+      await stripe.subscriptions.update(subscription.id, {
+        payment_behavior: "default_incomplete" as any,  // Klarna safety
+        metadata: {
+          plan_change_count: String(newCount),
+          plan_change_window_start: String(newWindowStart),
+        },
+      });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("Change plan error:", err);
+    Sentry.captureException(err, {
+      extra: {
+        userId,
+        route: "/api/stripe/change-plan",
+      },
     });
 
-    if (DEBUG) console.log("SCHEDULE CREATED", schedule.id, "SUB ON SCHEDULE", schedule.subscription);
-
-    await stripe.subscriptionSchedules.update(schedule.id, {
-      end_behavior: "release",
-      phases: [
-        {
-          start_date: subscription.billing_cycle_anchor,
-          end_date: Math.round(newEnd),
-          items: [{ price: item.price.id, quantity: 1 }],
-          proration_behavior: "none" as Stripe.SubscriptionSchedule.Phase.ProrationBehavior,
-        },
-        {
-          start_date: Math.round(newEnd),
-          items: [{ price: resolvedNewPrice.id, quantity: 1 }],
-          proration_behavior: "none" as Stripe.SubscriptionSchedule.Phase.ProrationBehavior,
-        },
-      ],
-    });
+    return NextResponse.json(
+      { error: "Unexpected server error." },
+      { status: 500 }
+    );
   }
-}
-
-/* ================= DOWNGRADE ================= */
-
-else if (!isForward) {
-  if (DEBUG) console.log("DOWNGRADE");
-
-  if (existingSchedule) {
-    await stripe.subscriptionSchedules.release(existingSchedule);
-  }
-
-  await stripe.subscriptions.update(subscription.id, {
-    items: [{ id: item.id, price: resolvedNewPrice.id }],
-    proration_behavior: "none",
-    cancel_at_period_end: false,
-    payment_behavior: "default_incomplete" as any,
-  });
-}
-
-if (!isTestUser) {
-  const meta = subscription.metadata ?? {};
-  const windowStart = parseInt(meta.plan_change_window_start ?? "0");
-  const changeCount = parseInt(meta.plan_change_count ?? "0");
-  const withinWindow = (now - windowStart) < (24 * 60 * 60);
-  const newCount = withinWindow ? changeCount + 1 : 1;
-  const newWindowStart = withinWindow ? windowStart : now;
-
-  await stripe.subscriptions.update(subscription.id, {
-    metadata: {
-      plan_change_count: String(newCount),
-      plan_change_window_start: String(newWindowStart),
-    },
-  });
-}
-
-return NextResponse.json({ success: true });
-
-} catch (err) {
-console.error("Change plan error:", err);
-Sentry.captureException(err, {
-  extra: {
-    userId,
-    route: "/api/stripe/change-plan",
-  },
-});
-
-return NextResponse.json(
-  { error: "Unexpected server error." },
-  { status: 500 }
-);
-}
 }

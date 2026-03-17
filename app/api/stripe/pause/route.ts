@@ -97,6 +97,7 @@ export async function POST(req: NextRequest) {
       });
 
       return NextResponse.json({ status: "active" });
+
     } else {
       // PAUSE
       if (pauseType === "skip_one") {
@@ -110,12 +111,26 @@ export async function POST(req: NextRequest) {
           );
         }
 
+        // Bug fix: current_period_end no longer exists in Stripe API 2026-02-25.clover.
+        // Fetch upcoming invoice to get the actual next billing date for pause_until.
+        const upcomingInvoice = await stripe.invoices
+          .createPreview({ customer: profile.stripe_customer_id })
+          .catch(() => null);
+
+        const pauseUntil =
+          (upcomingInvoice as any)?.next_payment_attempt ??
+          (upcomingInvoice as any)?.due_date ??
+          null;
+
         await stripe.subscriptions.update(subscription.id, {
           pause_collection: { behavior: "void" },
-          metadata: { pause_until: String((subscription as any).current_period_end) },
+          metadata: {
+            pause_until: pauseUntil ? String(pauseUntil) : "",
+          },
         });
+
       } else {
-        // indefinite
+        // indefinite — no end date needed
         await stripe.subscriptions.update(subscription.id, {
           pause_collection: { behavior: "void" },
         });

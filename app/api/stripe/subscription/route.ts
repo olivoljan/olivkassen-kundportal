@@ -59,12 +59,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: "none" });
     }
 
-    console.log("SUB RAW FIELDS:", JSON.stringify({
-      current_period_end: (subscription as any).current_period_end,
-      period_end: (subscription as any).period_end,
-      billing_cycle_anchor: (subscription as any).billing_cycle_anchor,
-      keys: Object.keys(subscription as any).filter(k => k.includes('period') || k.includes('end') || k.includes('anchor'))
-    }));
 
 
     const item = subscription.items.data[0];
@@ -84,12 +78,14 @@ export async function POST(req: NextRequest) {
       ? scheduleObj.phases[scheduleObj.phases.length - 1]?.items?.[0]?.price
       : null;
 
-    const [product, scheduledPrice, customer] = await Promise.all([
+    const [product, scheduledPrice, customer, upcomingInvoice] = await Promise.all([
       stripe.products.retrieve(productId),
       scheduledPriceId && typeof scheduledPriceId === "string" && scheduledPriceId !== item.price.id
         ? stripe.prices.retrieve(scheduledPriceId)
         : Promise.resolve(null),
       stripe.customers.retrieve(profile.stripe_customer_id),
+      stripe.invoices.createPreview({ customer: profile.stripe_customer_id })
+        .catch(() => null),
     ]);
 
     const volume = product.metadata?.volume ?? null;
@@ -135,13 +131,10 @@ export async function POST(req: NextRequest) {
        CURRENT PERIOD END
     ========================== */
 
-    let currentPeriodEnd: number | null = null;
-    const subData = subscription as any;
-    if (typeof subData.current_period_end === 'number') {
-      currentPeriodEnd = subData.current_period_end;
-    } else if (subData.current_period_end) {
-      currentPeriodEnd = parseInt(String(subData.current_period_end), 10);
-    }
+    let currentPeriodEnd: number | null =
+      (upcomingInvoice as any)?.next_payment_attempt ??
+      (upcomingInvoice as any)?.due_date ??
+      null;
 
     // For scheduled subscriptions, use the last phase end_date
     // as that represents the actual next delivery date

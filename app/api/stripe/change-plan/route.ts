@@ -2,6 +2,20 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import { LIVE_PRICES } from "@/lib/stripePriceMap";
+
+const ALL_LIVE_PRICES: Record<string, string> = {
+  ...LIVE_PRICES,
+  "3l-1m-legacy": "price_1Qzj8gClYp4p5ca6GDHQUs5y",
+  "3l-3m-legacy": "price_1QzjA6ClYp4p5ca6pH19JVGW",
+  "3l-6m-legacy": "price_1QzjCvClYp4p5ca6PSC6gPsT",
+  "2l-1m-legacy": "price_1RAXleClYp4p5ca6sC7VlVmq",
+  "2l-3m-legacy": "price_1RAXUSClYp4p5ca6cgMVvaZa",
+  "2l-6m-legacy": "price_1RAXZyClYp4p5ca6IheU4vvv",
+  "1l-1m-legacy": "price_1R9BoFClYp4p5ca60D7yhTMK",
+  "1l-3m-legacy": "price_1R9QksClYp4p5ca6d8QIyIbX",
+  "1l-6m-legacy": "price_1R9QWrClYp4p5ca6NfiKoEvX",
+};
 
 const DEBUG = true;
 
@@ -153,7 +167,19 @@ const effectiveIntervalCount = scheduledIntervalCount;
         p.recurring?.interval_count === targetIntervalCount
     );
 
-    if (!newPrice) {
+    let resolvedNewPriceId: string | null = newPrice?.id ?? null;
+
+    if (!resolvedNewPriceId) {
+      // Fallback: look up via legacy price map using product metadata volume
+      const product = await stripe.products.retrieve(productId) as any;
+      const volume: string = (product.metadata?.volume ?? "").toLowerCase();
+      if (volume) {
+        const legacyKey = `${volume}-${interval}-legacy`;
+        resolvedNewPriceId = ALL_LIVE_PRICES[legacyKey] ?? null;
+      }
+    }
+
+    if (!resolvedNewPriceId) {
       return NextResponse.json(
         {
           error:
@@ -162,6 +188,8 @@ const effectiveIntervalCount = scheduledIntervalCount;
         { status: 400 }
       );
     }
+
+    const resolvedNewPrice = newPrice ?? { id: resolvedNewPriceId };
 
    /* ================= RATE LIMITING ================= */
 
@@ -263,7 +291,7 @@ if (isForward && newEnd) {
         },
         {
           start_date: Math.round(newEnd),
-          items: [{ price: newPrice.id, quantity: 1 }],
+          items: [{ price: resolvedNewPrice.id, quantity: 1 }],
           proration_behavior: "none" as Stripe.SubscriptionSchedule.Phase.ProrationBehavior,
         },
       ],
@@ -281,9 +309,10 @@ else if (!isForward) {
   }
 
   await stripe.subscriptions.update(subscription.id, {
-    items: [{ id: item.id, price: newPrice.id }],
+    items: [{ id: item.id, price: resolvedNewPrice.id }],
     proration_behavior: "none",
     cancel_at_period_end: false,
+    payment_behavior: "default_incomplete" as any,
   });
 }
 

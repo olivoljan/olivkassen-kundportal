@@ -84,15 +84,12 @@ export async function POST(req: NextRequest) {
         ? stripe.prices.retrieve(scheduledPriceId)
         : Promise.resolve(null),
       stripe.customers.retrieve(profile.stripe_customer_id),
-      stripe.invoices.createPreview({ customer: profile.stripe_customer_id })
+      stripe.invoices.createPreview({
+        customer: profile.stripe_customer_id,
+        subscription: subscription.id,
+      })
         .catch((err) => { console.error("createPreview failed:", err.message); return null; }),
     ]);
-
-    console.log("upcomingInvoice:", JSON.stringify({
-      next_payment_attempt: (upcomingInvoice as any)?.next_payment_attempt,
-      due_date: (upcomingInvoice as any)?.due_date,
-      status: (upcomingInvoice as any)?.status
-    }));
 
     const volume = product.metadata?.volume ?? null;
 

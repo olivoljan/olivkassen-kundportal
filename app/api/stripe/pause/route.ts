@@ -94,6 +94,9 @@ export async function POST(req: NextRequest) {
       // RESUME
       await stripe.subscriptions.update(subscription.id, {
         pause_collection: null,
+        metadata: {
+          pause_until: "",
+        },
       });
 
       return NextResponse.json({ status: "active" });

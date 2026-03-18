@@ -455,7 +455,7 @@ export default function AccountClient() {
                   </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Aktivt abonnemang: <span className="font-medium text-foreground">{activeVolume} / {formatInterval(activeInterval)}</span>
+                    Aktivt abonnemang: <span className="font-bold text-foreground">{activeVolume} / {formatInterval(activeInterval)}</span>
                   </p>
                 )}
 

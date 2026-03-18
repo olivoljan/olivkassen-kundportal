@@ -2,7 +2,7 @@ import { CircleHelp } from "lucide-react";
 
 export function SiteHeader() {
   return (
-    <header className="w-full px-6 py-4 flex items-center justify-between">
+    <header className="w-full bg-white px-6 py-4 flex items-center justify-between">
       <a
         href="https://www.olivkassen.com"
         target="_blank"

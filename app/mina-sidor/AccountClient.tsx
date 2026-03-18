@@ -776,59 +776,68 @@ export default function AccountClient() {
             <div className="flex justify-end gap-3 pt-4">
               <button
                 onClick={() => setConfirmType(null)}
-                className="px-4 py-2 rounded-lg border"
+                disabled={actionLoading}
+                className="px-4 py-2 rounded-lg border disabled:opacity-50"
               >
                 Nej
               </button>
 
               <button
+                disabled={actionLoading}
                 onClick={async () => {
                   setActionLoading(true);
 
-                  if (confirmType === "pause" || confirmType === "unpause") {
-                    await handlePauseResume();
-                    setOpenSection(null);
-                    showToast(
-                      confirmType === "pause"
-                        ? "Abonnemanget är pausat"
-                        : "Abonnemanget är återupptaget"
-                    );
-                  }
+                  try {
+                    if (confirmType === "pause" || confirmType === "unpause") {
+                      await handlePauseResume();
+                      setOpenSection(null);
+                      showToast(
+                        confirmType === "pause"
+                          ? "Abonnemanget är pausat"
+                          : "Abonnemanget är återupptaget"
+                      );
+                    }
 
-                  if (confirmType === "cancel") {
-                    await handleCancel(false);
-                    setOpenSection(null);
-                    showToast(
-                      "Abonnemanget avslutades"
-                    );
-                  }
+                    if (confirmType === "cancel") {
+                      await handleCancel(false);
+                      setOpenSection(null);
+                      showToast("Abonnemanget avslutades");
+                    }
 
-                  if (confirmType === "uncancel") {
-                    await handleCancel(true);
-                    setOpenSection(null);
-                    showToast("Avslutet har ångrats");
-                  }
+                    if (confirmType === "uncancel") {
+                      await handleCancel(true);
+                      setOpenSection(null);
+                      showToast("Avslutet har ångrats");
+                    }
 
-                  if (confirmType === "changePlan") {
-                    await handleChangePlan();
-                  }
+                    if (confirmType === "changePlan") {
+                      await handleChangePlan();
+                    }
 
-                  if (confirmType === "extraOrder") {
-                    setOrderingExtra(true);
-                    const res = await safeFetch("/api/stripe/one-time-order", {
-                      userId: session.user.id,
-                    });
-                    setOrderingExtra(false);
-                    if (res?.success) showToast("En faktura har skickats till din e-post. Betala inom 3 dagar. 🫒", 8000);
-                    else showToast(res?.error ?? "Något gick fel", 9000);
-                  }
+                    if (confirmType === "extraOrder") {
+                      setOrderingExtra(true);
+                      const res = await safeFetch("/api/stripe/one-time-order", {
+                        userId: session.user.id,
+                      });
+                      setOrderingExtra(false);
+                      if (res?.success) showToast("En faktura har skickats till din e-post. Betala inom 3 dagar. 🫒", 8000);
+                      else showToast(res?.error ?? "Något gick fel", 9000);
+                    }
 
-                  setConfirmType(null);
-                  setActionLoading(false);
+                    setConfirmType(null);
+                  } catch {
+                    // Keep modal open so the user can retry
+                  } finally {
+                    setActionLoading(false);
+                  }
                 }}
-                className="px-4 py-2 rounded-lg bg-black text-white"
+                className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-70 flex items-center justify-center min-w-[48px]"
               >
-                Ja
+                {actionLoading ? (
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  "Ja"
+                )}
               </button>
             </div>
 

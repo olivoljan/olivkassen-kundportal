@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import { SiteHeader } from "@/app/components/SiteHeader";
 
 export default function Home() {
   const supabase = createClient();
@@ -11,7 +12,11 @@ export default function Home() {
   >("login");
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-4 bg-[#ECE6DF]">
+    <div className="min-h-screen flex flex-col bg-[#ECE6DF]">
+
+      <SiteHeader />
+
+      <main className="flex-1 flex items-center justify-center px-4">
       <div className="w-full max-w-[420px] bg-card rounded-3xl shadow-sm p-10 space-y-6">
 
         {/* ===== SENT STATE ===== */}
@@ -116,7 +121,7 @@ export default function Home() {
                   type="email"
                   placeholder="din@email.se"
                   required
-                  className="w-full rounded-full px-6 py-4 bg-[#ECE6DF] text-base focus:outline-none focus:ring-2 focus:ring-black transition"
+                  className="w-full rounded-full px-6 py-4 bg-white border border-gray-200 text-base focus:outline-none focus:ring-2 focus:ring-black transition"
                 />
               </div>
 
@@ -130,6 +135,7 @@ export default function Home() {
           </>
         )}
       </div>
-    </main>
+      </main>
+    </div>
   );
 }

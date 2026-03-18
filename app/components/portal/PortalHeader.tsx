@@ -42,8 +42,8 @@ export function PortalHeader({ user, nextDelivery, isPaused, loading, subscripti
           </p>
 
           {user?.email && (
-            <p className="mt-2 text-sm text-muted-foreground">
-              Inloggad som: {user.email}
+            <p className="mt-4 text-md text-muted-foreground">
+              Inloggad som: <span className="font-medium text-foreground">{user.email}</span>
             </p>
           )}
 
@@ -59,7 +59,7 @@ export function PortalHeader({ user, nextDelivery, isPaused, loading, subscripti
               Abonnemanget är avslutat
             </p>
           ) : nextDelivery ? (
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-md text-muted-foreground">
               Nästa leverans:{" "}
               <span className="font-medium text-foreground">
                 {new Date(nextDelivery * 1000).toLocaleDateString("sv-SE", {

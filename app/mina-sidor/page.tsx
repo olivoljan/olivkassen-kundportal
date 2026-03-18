@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import AccountClient from "./AccountClient";
+import { SiteHeader } from "@/app/components/SiteHeader";
 
 export default async function Page() {
   const cookieStore = await cookies();
@@ -26,5 +27,10 @@ export default async function Page() {
     redirect("/");
   }
 
-  return <AccountClient />;
+  return (
+    <>
+      <SiteHeader />
+      <AccountClient />
+    </>
+  );
 }

@@ -454,8 +454,11 @@ export default function AccountClient() {
                     <PauseCircle className="w-4 h-4 shrink-0" />
                   </p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Aktivt abonnemang: <span className="font-bold text-foreground">{activeVolume} / {formatInterval(activeInterval)}</span>
+                  <p className="mt-1 text-md text-muted-foreground">
+                    Aktivt abonnemang:{" "}
+                    <span className="font-medium text-foreground">
+                      {activeVolume} / {formatInterval(activeInterval)}
+                    </span>
                   </p>
                 )}
 

@@ -6,6 +6,12 @@ const bricolage = Bricolage_Grotesque({
   variable: "--font-bricolage",
 });
 
+export const metadata = {
+  icons: {
+    icon: "/favicon.png",
+  },
+};
+
 export default function RootLayout({
   children,
 }: {

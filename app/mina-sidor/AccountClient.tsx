@@ -449,7 +449,7 @@ export default function AccountClient() {
                     Abonnemanget är avslutat
                   </p>
                 ) : subscription?.status === "paused" ? (
-                  <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  <p className="mt-1 text-md text-muted-foreground flex items-center gap-1">
                     <span>Abonnemanget är pausat</span>
                     <PauseCircle className="w-4 h-4 shrink-0" />
                   </p>

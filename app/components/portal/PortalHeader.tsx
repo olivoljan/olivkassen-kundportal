@@ -50,7 +50,7 @@ export function PortalHeader({ user, nextDelivery, isPaused, loading, subscripti
           {loading ? (
             <div className="mt-1 h-4 w-40 bg-gray-200 rounded-full animate-pulse" />
           ) : subscriptionStatus === "paused" ? (
-            <p className="mt-1 text-sm text-muted-foreground flex items-center gap-1">
+            <p className="mt-1 text-md text-muted-foreground flex items-center gap-1">
               <span>Abonnemanget är pausat</span>
               <PauseCircle className="w-4 h-4 shrink-0" />
             </p>

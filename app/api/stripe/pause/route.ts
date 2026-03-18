@@ -117,13 +117,13 @@ export async function POST(req: NextRequest) {
         // Bug fix: current_period_end no longer exists in Stripe API 2026-02-25.clover.
         // Fetch upcoming invoice to get the actual next billing date for pause_until.
         const upcomingInvoice = await stripe.invoices
-          .createPreview({ customer: profile.stripe_customer_id })
+          .createPreview({
+            customer: profile.stripe_customer_id,
+            subscription: subscription.id,
+          })
           .catch(() => null);
 
-        const pauseUntil =
-          (upcomingInvoice as any)?.next_payment_attempt ??
-          (upcomingInvoice as any)?.due_date ??
-          null;
+        const pauseUntil = (upcomingInvoice as any)?.next_payment_attempt ?? null;
 
         await stripe.subscriptions.update(subscription.id, {
           pause_collection: { behavior: "void" },

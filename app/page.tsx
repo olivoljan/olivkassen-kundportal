@@ -24,13 +24,13 @@ export default function Home() {
           <>
             <div className="space-y-3">
               <h1 className="text-[40px] font-extrabold tracking-[-1.9px]">
-                Kontrollera din e-post
+                Kolla din e-post!
               </h1>
 
               <p className="text-lg text-muted-foreground">
-                Vi har skickat en säker inloggningslänk till din e-postadress.
-                <br />
-                Klicka på länken för att fortsätta.
+              Vi har skickat en inloggningslänk till din e-postadress. 
+Öppna mejlet och klicka på knappen – så är du inloggad. 
+Länken fungerar i 60 minuter.
               </p>
             </div>
 
@@ -38,7 +38,7 @@ export default function Home() {
               onClick={() => setState("expired")}
               className="text-sm underline underline-offset-4 text-muted-foreground hover:text-foreground transition"
             >
-              Länken fungerade inte?
+              Fick du inget mejl? Skicka igen
             </button>
           </>
         )}

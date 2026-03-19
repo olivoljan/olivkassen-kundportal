@@ -410,16 +410,17 @@ export default function AccountClient() {
           isOpen={openSection === "extraOrder"}
           onToggle={() => toggleSection("extraOrder")}
         >
-          <p className="text-black leading-relaxed">
-            Behöver du mer olivolja – här kan du göra en extra beställning
-            som inte påverkar ditt befintliga abonnemang.
+          <p className="text-lg text-black leading-relaxed">
+          Du kan beställa extra olivolja i den mängd du vill — utan att 
+ändra ditt abonnemang. Välj antal, betala tryggt med ditt vanliga 
+betalningssätt och vi skickar leveransen direkt till din adress.
           </p>
           <button
             onClick={() => setConfirmType("extraOrder")}
             disabled={orderingExtra}
             className="mt-4 bg-white text-black rounded-full px-6 py-4 font-semibold border border-black/10 hover:opacity-90 transition disabled:opacity-50"
           >
-            {orderingExtra ? "Beställer..." : "Engångsbeställning"}
+            {orderingExtra ? "Beställer..." : "Beställ extra olivolja"}
           </button>
         </AccordionCard>
 
@@ -469,7 +470,10 @@ export default function AccountClient() {
                   </div>
                 ) : (
                   <>
-                    <h3 className="text-xl font-bold mb-0">Ändra abonnemang</h3>
+                    <div className="space-y-3">
+                      <h3 className="text-lg font-semibold">
+                      Ändra abonnemang
+                      </h3>
                     <div className="space-y-1">
                       <p className="mt-1 text-md text-muted-foreground">
                         Abonnemang:{" "}
@@ -489,6 +493,7 @@ export default function AccountClient() {
                           </span>
                         </p>
                       )}
+                      </div>
                     </div>
 
                     {/* ================= VOLUME FIRST ================= */}
@@ -804,6 +809,8 @@ export default function AccountClient() {
                 ? (pauseType === "skip_one" ? "Hoppa över nästa leverans?" : "Pausa ditt abonnemang?")
                 : confirmType === "unpause"
                 ? "Återuppta ditt abonnemang?"
+                : confirmType === "changePlan"
+                ? "Bekräfta din ändring"
                 : "Är du säker?"}
             </h2>
 
@@ -823,8 +830,13 @@ export default function AccountClient() {
               )}
               {confirmType === "uncancel" &&
                 "Välkommen tillbaka! Om du ångrar avslutet fortsätter ditt abonnemang som vanligt och du får din nästa leverans på det datum som gäller. Ingenting ändras och du behöver inte göra något mer."}
-              {confirmType === "changePlan" &&
-                `Vill du ändra till ${selectedVolume} / ${formatInterval(selectedInterval)}?`}
+              {confirmType === "changePlan" && (
+                <>
+                  Du håller på att ändra ditt abonnemang till {selectedVolume} / {formatInterval(selectedInterval)}.
+                  <br /><br />
+                  Ändringen träder i kraft direkt och din nästa leverans kommer enligt det nya upplägget. Du debiteras inte något extra för ändringen.
+                </>
+              )}
               {confirmType === "extraOrder" &&
                 `Vill du beställa en extra leverans av ${activeVolume} olivolja? Du debiteras ${activeVolume === "3L" ? "598" : "598"} kr direkt.`}
             </p>

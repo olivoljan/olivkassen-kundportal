@@ -218,7 +218,7 @@ export async function POST(req: Request) {
     const periodStart = subscription.billing_cycle_anchor;
 
     const upcomingInvoice = await stripe.invoices
-      .createPreview({ customer: customerId })
+      .createPreview({ customer: customerId, subscription: subscription.id })
       .catch(() => null);
 
     const periodEnd: number =
@@ -336,13 +336,27 @@ export async function POST(req: Request) {
         await stripe.subscriptionSchedules.release(existingScheduleId);
       }
 
+      const isIntervalChange = targetIntervalCount !== currentIntervalCount;
+
       await stripe.subscriptions.update(subscription.id, {
         items: [{ id: item.id, price: resolvedNewPrice.id }],
         proration_behavior: "none",
         cancel_at_period_end: false,      // Bug 4: always clear on change
         payment_behavior: "default_incomplete" as any,  // Klarna safety
-        billing_cycle_anchor: "unchanged" as any,
+        ...(isIntervalChange ? {} : { billing_cycle_anchor: "unchanged" as any }),
       });
+
+      // Void any open invoice created by the plan change
+      const openInvoices = await stripe.invoices.list({
+        subscription: subscription.id,
+        limit: 5,
+      });
+
+      for (const invoice of openInvoices.data) {
+        if (invoice.status === "open") {
+          await stripe.invoices.voidInvoice(invoice.id);
+        }
+      }
     }
 
     /* ================= RATE LIMIT METADATA UPDATE ================= */

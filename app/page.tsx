@@ -11,6 +11,7 @@ export default function Home() {
     "login" | "sent" | "expired"
   >("login");
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#ECE6DF]">
@@ -86,6 +87,7 @@ Länken fungerar i 60 minuter.
               onSubmit={async (e) => {
                 e.preventDefault();
                 setEmailError(null);
+                setIsSubmitting(true);
 
                 const email = (
                   e.currentTarget.elements.namedItem(
@@ -105,6 +107,7 @@ Länken fungerar i 60 minuter.
                       setEmailError(
                         "Vi kunde inte hitta något konto kopplat till den här e-postadressen. Prova med den adress du använde när du startade ditt abonnemang, eller kontakta oss på kontakt@olivkassen.se"
                       );
+                      setIsSubmitting(false);
                       return;
                     }
                   }
@@ -122,6 +125,7 @@ Länken fungerar i 60 minuter.
 
                 if (error) {
                   alert(error.message);
+                  setIsSubmitting(false);
                   return;
                 }
 
@@ -153,9 +157,10 @@ Länken fungerar i 60 minuter.
 
               <button
                 type="submit"
-                className="w-full bg-[#1a3300] text-[#ffe95c] rounded-full py-4 px-6 font-semibold hover:opacity-90 transition"
+                disabled={isSubmitting}
+                className="w-full bg-[#1a3300] text-[#ffe95c] rounded-full py-4 px-6 font-semibold hover:opacity-90 transition disabled:opacity-70"
               >
-                Skicka inloggningslänk
+                {isSubmitting ? "Skickar..." : "Skicka inloggningslänk"}
               </button>
             </form>
           </>

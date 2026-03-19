@@ -10,6 +10,7 @@ export default function Home() {
   const [state, setState] = useState<
     "login" | "sent" | "expired"
   >("login");
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#ECE6DF]">
@@ -84,12 +85,32 @@ Länken fungerar i 60 minuter.
               className="space-y-4"
               onSubmit={async (e) => {
                 e.preventDefault();
+                setEmailError(null);
 
                 const email = (
                   e.currentTarget.elements.namedItem(
                     "email"
                   ) as HTMLInputElement
                 ).value;
+
+                try {
+                  const checkRes = await fetch("/api/stripe/check-email", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email }),
+                  });
+                  if (checkRes.ok) {
+                    const checkData = await checkRes.json();
+                    if (checkData.found === false) {
+                      setEmailError(
+                        "Vi kunde inte hitta något konto kopplat till den här e-postadressen. Prova med den adress du använde när du startade ditt abonnemang, eller kontakta oss på kontakt@olivkassen.se"
+                      );
+                      return;
+                    }
+                  }
+                } catch {
+                  // Network error — fail open and proceed with sending the link
+                }
 
                 const { error } =
                   await supabase.auth.signInWithOtp({
@@ -122,7 +143,12 @@ Länken fungerar i 60 minuter.
                   placeholder="din@email.se"
                   required
                   className="w-full rounded-full px-6 py-4 bg-white border border-gray-200 text-base focus:outline-none focus:ring-2 focus:ring-black transition"
+                  onChange={() => emailError && setEmailError(null)}
                 />
+
+                {emailError && (
+                  <p className="text-sm text-red-600">{emailError}</p>
+                )}
               </div>
 
               <button

@@ -528,8 +528,7 @@ betalningssätt och vi skickar leveransen direkt till din adress.
                         value={selectedInterval}
                         activeValue={activeInterval}
                         onChange={(v) => setSelectedInterval(v as Interval)}
-                        disabled={(v) => v === "6m" && activeInterval === "1m"}
-                      />
+  />
                     </div>
 
                     {/* ================= ACTION BUTTONS ================= */}

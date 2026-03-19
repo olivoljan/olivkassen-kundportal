@@ -127,7 +127,7 @@ export default function Home() {
 
               <button
                 type="submit"
-                className="w-full bg-black text-white rounded-2xl py-4 font-semibold hover:opacity-90 transition"
+                className="w-full bg-[#1a3300] text-[#ffe95c] rounded-full py-4 px-6 font-semibold hover:opacity-90 transition"
               >
                 Skicka inloggningslänk
               </button>

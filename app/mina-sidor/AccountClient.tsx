@@ -110,7 +110,6 @@ export default function AccountClient() {
         safeFetch("/api/stripe/invoices", { userId: session.user.id }),
       ]);
 
-      console.log("sub response:", sub); // ADD THIS LINE
 
       if (sub?.cancel_at_period_end) {
         sub.status = "canceling";
@@ -391,34 +390,34 @@ export default function AccountClient() {
     <main className="min-h-screen flex justify-center px-4 py-10 bg-[#ECE6DF]">
       <div className="w-full max-w-[400px] space-y-4">
 
-        <PortalHeader user={session?.user} nextDelivery={nextDelivery} isPaused={subscription?.status === "paused"} loading={loading} subscriptionStatus={subscription?.status} />
+        <PortalHeader user={session?.user} />
 
         {/* ================= EXTRA BESTÄLLNING ================= */}
 
         <AccordionCard
           title={
             <div>
-              <div className="text-white font-extrabold">Extra beställning</div>
+              <div className="text-black font-extrabold">Extra beställning</div>
               {openSection !== "extraOrder" && (
-                <div className="text-white text-sm font-normal mt-0.5">
+                <div className="text-black text-lg font-normal mt-1.5">
                   Behöver du mer olivolja? Beställ en extra leverans direkt.
                 </div>
               )}
             </div>
           }
-          cardClassName="bg-[#6AAF5E] text-white"
-          chevronClassName="text-white"
+          cardClassName="bg-[#a7f57b] text-black"
+          chevronClassName="text-black"
           isOpen={openSection === "extraOrder"}
           onToggle={() => toggleSection("extraOrder")}
         >
-          <p className="text-white leading-relaxed">
+          <p className="text-black leading-relaxed">
             Behöver du mer olivolja – här kan du göra en extra beställning
             som inte påverkar ditt befintliga abonnemang.
           </p>
           <button
             onClick={() => setConfirmType("extraOrder")}
             disabled={orderingExtra}
-            className="mt-4 bg-white text-black rounded-full px-6 py-4 font-semibold hover:opacity-90 transition disabled:opacity-50"
+            className="mt-4 bg-white text-black rounded-full px-6 py-4 font-semibold border border-black/10 hover:opacity-90 transition disabled:opacity-50"
           >
             {orderingExtra ? "Beställer..." : "Engångsbeställning"}
           </button>
@@ -443,78 +442,110 @@ export default function AccountClient() {
               <div className="space-y-8">
 
                 {/* ================= ACTIVE PLAN SUMMARY ================= */}
-                <h3 className="text-xl font-bold mb-0">Ändra abonnemang</h3>
                 {subscription?.status === "canceling" ? (
-                  <p className="text-sm text-muted-foreground">
-                    Abonnemanget är avslutat
-                  </p>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Abonnemanget är avslutat
+                    </p>
+                    <button
+                      onClick={() => setConfirmType("uncancel")}
+                      className="underline text-black text-md"
+                    >
+                      Ångra avslut
+                    </button>
+                  </div>
                 ) : subscription?.status === "paused" ? (
-                  <p className="mt-1 text-md text-muted-foreground flex items-center gap-1">
-                    <span>Abonnemanget är pausat</span>
-                    <PauseCircle className="w-4 h-4 shrink-0" />
-                  </p>
+                  <div className="space-y-2">
+                    <p className="mt-1 text-md text-muted-foreground flex items-center gap-1">
+                      <span>Abonnemanget är pausat</span>
+                      <PauseCircle className="w-4 h-4 shrink-0" />
+                    </p>
+                    <button
+                      onClick={() => setConfirmType("unpause")}
+                      className="underline text-black text-md"
+                    >
+                      Återuppta abonnemang
+                    </button>
+                  </div>
                 ) : (
-                  <p className="mt-1 text-md text-muted-foreground">
-                    Aktivt abonnemang:{" "}
-                    <span className="font-medium text-foreground">
-                      {activeVolume} / {formatInterval(activeInterval)}
-                    </span>
-                  </p>
+                  <>
+                    <h3 className="text-xl font-bold mb-0">Ändra abonnemang</h3>
+                    <div className="space-y-1">
+                      <p className="mt-1 text-md text-muted-foreground">
+                        Abonnemang:{" "}
+                        <span className="font-medium text-foreground">
+                          {activeVolume} / {formatInterval(activeInterval)}
+                        </span>
+                      </p>
+                      {nextDelivery && (
+                        <p className="text-md text-muted-foreground">
+                          Nästa leverans:{" "}
+                          <span className="font-medium text-foreground">
+                            {new Date(nextDelivery * 1000).toLocaleDateString("sv-SE", {
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            })}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+
+                    {/* ================= VOLUME FIRST ================= */}
+                    <div className="space-y-3">
+                      <h3 className="text-lg font-semibold">
+                        Hur mycket ska vi leverera?
+                      </h3>
+
+                      <CustomSelect
+                        options={[
+                          { value: "2L", label: "2 liter" },
+                          { value: "3L", label: "3 liter (3 × 1L)" },
+                        ]}
+                        value={selectedVolume}
+                        activeValue={activeVolume}
+                        onChange={(v) => setSelectedVolume(v as Volume)}
+                      />
+                    </div>
+
+                    {/* ================= INTERVAL SECOND ================= */}
+                    <div className="space-y-3">
+                      <h3 className="text-lg font-semibold">
+                        Hur ofta ska vi leverera?
+                      </h3>
+
+                      <CustomSelect
+                        options={[
+                          { value: "1m", label: "Varje månad" },
+                          { value: "3m", label: "Var 3:e månad" },
+                          { value: "6m", label: "Var 6:e månad" },
+                        ]}
+                        value={selectedInterval}
+                        activeValue={activeInterval}
+                        onChange={(v) => setSelectedInterval(v as Interval)}
+                        disabled={(v) => v === "6m" && activeInterval === "1m"}
+                      />
+                    </div>
+
+                    {/* ================= ACTION BUTTONS ================= */}
+                    <div className="flex items-center justify-between gap-6 pt-2">
+                      <button
+                        onClick={() => setConfirmType("changePlan")}
+                        disabled={updatingPlan}
+                        className="flex-1 bg-[#1a3300] text-[#ffe95c] rounded-full py-4 px-6 font-semibold disabled:opacity-50 transition hover:opacity-90"
+                      >
+                        {updatingPlan ? "Uppdaterar..." : "Spara ändringar"}
+                      </button>
+
+                      <button
+                        onClick={() => toggleSection("subscription")}
+                        className="underline text-gray-600 whitespace-nowrap text-base"
+                      >
+                        Avbryt
+                      </button>
+                    </div>
+                  </>
                 )}
-
-                {/* ================= VOLUME FIRST ================= */}
-                <div className="space-y-3">
-                  <h3 className="text-lg font-semibold">
-                    Hur mycket ska vi leverera?
-                  </h3>
-
-                  <CustomSelect
-                    options={[
-                      { value: "2L", label: "2 liter" },
-                      { value: "3L", label: "3 liter (3 × 1L)" },
-                    ]}
-                    value={selectedVolume}
-                    activeValue={activeVolume}
-                    onChange={(v) => setSelectedVolume(v as Volume)}
-                  />
-                </div>
-
-                {/* ================= INTERVAL SECOND ================= */}
-                <div className="space-y-3">
-                  <h3 className="text-lg font-semibold">
-                    Hur ofta ska vi leverera?
-                  </h3>
-
-                  <CustomSelect
-                    options={[
-                      { value: "1m", label: "Varje månad" },
-                      { value: "3m", label: "Var 3:e månad" },
-                      { value: "6m", label: "Var 6:e månad" },
-                    ]}
-                    value={selectedInterval}
-                    activeValue={activeInterval}
-                    onChange={(v) => setSelectedInterval(v as Interval)}
-                    disabled={(v) => v === "6m" && activeInterval === "1m"}
-                  />
-                </div>
-
-                {/* ================= ACTION BUTTONS ================= */}
-                <div className="flex items-center justify-between gap-6 pt-2">
-                  <button
-                    onClick={() => setConfirmType("changePlan")}
-                    disabled={updatingPlan}
-                    className="flex-1 bg-black text-white rounded-full py-5 font-semibold disabled:opacity-50 transition hover:opacity-90"
-                  >
-                    {updatingPlan ? "Uppdaterar..." : "Spara ändringar"}
-                  </button>
-
-                  <button
-                    onClick={() => toggleSection("subscription")}
-                    className="underline text-gray-600 whitespace-nowrap text-base"
-                  >
-                    Avbryt
-                  </button>
-                </div>
 
               </div>
             )}
@@ -552,10 +583,10 @@ export default function AccountClient() {
                     setShowPauseSelector(true);
                   }
                 }}
-                className={`px-6 py-3 rounded-full font-semibold transition ${
+                className={`px-6 py-4 rounded-full font-semibold transition ${
                   subscription?.status === "canceled" || subscription?.status === "canceling"
-                    ? "bg-black text-white opacity-40 cursor-not-allowed"
-                    : "bg-black text-white hover:opacity-90"
+                    ? "bg-[#1a3300] text-[#ffe95c] opacity-40 cursor-not-allowed"
+                    : "bg-[#1a3300] text-[#ffe95c] hover:opacity-90"
                 }`}
               >
                 {subscription?.status === "paused"
@@ -573,23 +604,30 @@ export default function AccountClient() {
                 Är du säker på att du vill avsluta? Du kan pausa istället och
                 behålla ditt konto.
               </p>
-              <button
-                disabled={subscription?.status === "paused"}
-                onClick={() =>
-                  setConfirmType(
-                    subscription?.status === "canceling" ? "uncancel" : "cancel",
-                  )
-                }
-                className={`underline transition ${
-                  subscription?.status === "paused"
-                    ? "text-black opacity-50 pointer-events-none"
-                    : "text-black hover:opacity-60"
-                }`}
-              >
-                {subscription?.status === "canceling"
-                  ? "Ångra avslut"
-                  : "Avsluta abonnemang"}
-              </button>
+              <div className="relative group inline-block">
+                <button
+                  disabled={subscription?.status === "paused"}
+                  onClick={() =>
+                    setConfirmType(
+                      subscription?.status === "canceling" ? "uncancel" : "cancel",
+                    )
+                  }
+                  className={`underline transition ${
+                    subscription?.status === "paused"
+                      ? "text-black opacity-50 pointer-events-none"
+                      : "text-black hover:opacity-60"
+                  }`}
+                >
+                  {subscription?.status === "canceling"
+                    ? "Ångra avslut"
+                    : "Avsluta abonnemang"}
+                </button>
+                {subscription?.status === "paused" && (
+                  <div className="absolute bottom-full left-0 mb-2 w-64 bg-black text-white text-sm rounded-xl px-4 py-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    Ditt abonnemang är pausat. Återuppta abonnemanget först för att kunna avsluta det.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </AccordionCard>
@@ -712,8 +750,8 @@ export default function AccountClient() {
                       </p>
                       <p className="text-sm text-gray-500 mt-0.5">
                         {type === "skip_one"
-                          ? "Din nästa leverans utgår och därefter löper abonnemanget på som vanligt"
-                          : "Abonnemanget pausat tillsvidare. Behöver aktivera för framtida leveranser"}
+                          ? "Din nästa leverans hoppas över och du debiteras inte. Därefter återupptas abonnemanget automatiskt och leveranserna fortsätter som vanligt."
+                          : "Abonnemanget pausas och du får inga fler leveranser förrän du själv väljer att återuppta det. Du debiteras inte under pausen. Perfekt om du har olivolja kvar och inte vet när du vill ha mer."}
                       </p>
                       {type === "skip_one" && hasSchedule && (
                         <p className="text-xs text-gray-400 mt-1">
@@ -732,7 +770,7 @@ export default function AccountClient() {
                   setShowPauseSelector(false);
                   setConfirmType("pause");
                 }}
-                className="w-full bg-black text-white rounded-full py-4 font-semibold hover:opacity-90 transition"
+                className="w-full bg-[#1a3300] text-[#ffe95c] rounded-full py-4 font-semibold hover:opacity-90 transition"
               >
                 Spara ändringar
               </button>
@@ -758,18 +796,33 @@ export default function AccountClient() {
           <div className="bg-white rounded-2xl p-6 w-[90%] max-w-sm space-y-4 shadow-lg">
 
             <h2 className="text-lg font-semibold">
-              Är du säker?
+              {confirmType === "cancel"
+                ? "Är du säker på att du vill avsluta?"
+                : confirmType === "uncancel"
+                ? "Vill du ångra ditt avslut?"
+                : confirmType === "pause"
+                ? (pauseType === "skip_one" ? "Hoppa över nästa leverans?" : "Pausa ditt abonnemang?")
+                : confirmType === "unpause"
+                ? "Återuppta ditt abonnemang?"
+                : "Är du säker?"}
             </h2>
 
             <p className="text-sm text-gray-600">
-              {confirmType === "pause" &&
-                "Vill du pausa ditt abonnemang?"}
+              {confirmType === "pause" && pauseType === "skip_one" &&
+                "Din kommande leverans hoppas över och du debiteras inte. Abonnemanget återupptas sedan automatiskt."}
+              {confirmType === "pause" && pauseType === "indefinite" &&
+                "Abonnemanget pausas tillsvidare och du får inga fler leveranser eller debiteringar förrän du väljer att starta igen. Du kan återuppta när som helst."}
               {confirmType === "unpause" &&
-                "Vill du återuppta ditt abonnemang?"}
-              {confirmType === "cancel" &&
-                "Vill du avsluta ditt abonnemang?"}
+                "Abonnemanget aktiveras igen och du får din nästa leverans på ordinarie datum. Välkommen tillbaka!"}
+              {confirmType === "cancel" && (
+                <>
+                  Visste du att du även kan pausa ditt abonnemang? Då får du ingen mer olivolja förrän du själv säger till och väljer själv när du ska aktivera det igen.
+                  <br /><br />
+                  När du avslutar tar vi bort ditt konto i sin helhet och du behöver registrera dig på nytt för att beställa igen, kanske till ett dyrare pris.
+                </>
+              )}
               {confirmType === "uncancel" &&
-                "Vill du ångra avslutet?"}
+                "Välkommen tillbaka! Om du ångrar avslutet fortsätter ditt abonnemang som vanligt och du får din nästa leverans på det datum som gäller. Ingenting ändras och du behöver inte göra något mer."}
               {confirmType === "changePlan" &&
                 `Vill du ändra till ${selectedVolume} / ${formatInterval(selectedInterval)}?`}
               {confirmType === "extraOrder" &&
@@ -778,11 +831,11 @@ export default function AccountClient() {
 
             <div className="flex justify-end gap-3 pt-4">
               <button
-                onClick={() => setConfirmType(null)}
+                onClick={() => confirmType === "cancel" ? setConfirmType("pause") : setConfirmType(null)}
                 disabled={actionLoading}
                 className="px-4 py-2 rounded-lg border disabled:opacity-50"
               >
-                Nej
+                {confirmType === "cancel" ? "Pausa" : "Nej"}
               </button>
 
               <button
@@ -834,10 +887,12 @@ export default function AccountClient() {
                     setActionLoading(false);
                   }
                 }}
-                className="px-4 py-2 rounded-lg bg-black text-white disabled:opacity-70 flex items-center justify-center min-w-[48px]"
+                className="px-4 py-2 rounded-lg bg-[#1a3300] text-[#ffe95c] disabled:opacity-70 flex items-center justify-center min-w-[48px]"
               >
                 {actionLoading ? (
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : confirmType === "cancel" ? (
+                  "Avsluta"
                 ) : (
                   "Ja"
                 )}

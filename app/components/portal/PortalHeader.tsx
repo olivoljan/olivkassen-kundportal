@@ -2,19 +2,14 @@
 
 import { createBrowserClient } from "@supabase/ssr";
 import { useRouter } from "next/navigation";
-import { PauseCircle } from "lucide-react";
 
 type PortalHeaderProps = {
   user?: {
     email?: string | null;
   };
-  nextDelivery?: number | null;
-  isPaused?: boolean;
-  loading?: boolean;
-  subscriptionStatus?: string;
 };
 
-export function PortalHeader({ user, nextDelivery, isPaused, loading, subscriptionStatus }: PortalHeaderProps) {
+export function PortalHeader({ user }: PortalHeaderProps) {
   const router = useRouter();
 
   const supabase = createBrowserClient(
@@ -46,30 +41,6 @@ export function PortalHeader({ user, nextDelivery, isPaused, loading, subscripti
               Inloggad som: <span className="font-medium text-foreground">{user.email}</span>
             </p>
           )}
-
-          {loading ? (
-            <div className="mt-1 h-4 w-40 bg-gray-200 rounded-full animate-pulse" />
-          ) : subscriptionStatus === "paused" ? (
-            <p className="mt-1 text-md text-muted-foreground flex items-center gap-1">
-              <span>Abonnemanget är pausat</span>
-              <PauseCircle className="w-4 h-4 shrink-0" />
-            </p>
-          ) : subscriptionStatus === "canceling" ? (
-            <p className="mt-1 text-sm text-muted-foreground">
-              Abonnemanget är avslutat
-            </p>
-          ) : nextDelivery ? (
-            <p className="mt-1 text-md text-muted-foreground">
-              Nästa leverans:{" "}
-              <span className="font-medium text-foreground">
-                {new Date(nextDelivery * 1000).toLocaleDateString("sv-SE", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
-              </span>
-            </p>
-          ) : null}
         </div>
       </div>
 

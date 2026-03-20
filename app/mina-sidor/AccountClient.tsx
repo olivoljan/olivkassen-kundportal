@@ -1056,37 +1056,40 @@ export default function AccountClient() {
             </p>
 
             {confirmType === "cancel" ? (
-              <div className="flex items-center justify-end gap-3 pt-4 flex-wrap">
+              <div className="flex items-center justify-between pt-4">
                 <button
                   type="button"
                   onClick={() => setConfirmType(null)}
-                  className="underline text-gray-600 text-base bg-transparent border-0 p-0 cursor-pointer"
+                  disabled={actionLoading}
+                  className="underline text-gray-600 text-base disabled:opacity-50"
                 >
                   Avbryt
                 </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPauseType("indefinite");
-                    setConfirmType("pauseIndefiniteFromCancel");
-                  }}
-                  disabled={actionLoading}
-                  className="px-4 py-2 rounded-lg border disabled:opacity-50"
-                >
-                  Pausa
-                </button>
-                <button
-                  type="button"
-                  disabled={actionLoading}
-                  onClick={handleModalConfirm}
-                  className="px-4 py-2 rounded-lg bg-[#1a3300] text-[#ffe95c] disabled:opacity-70 flex items-center justify-center min-w-[48px]"
-                >
-                  {actionLoading ? (
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    "Avsluta"
-                  )}
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPauseType("indefinite");
+                      setConfirmType("pauseIndefiniteFromCancel");
+                    }}
+                    disabled={actionLoading}
+                    className="px-4 py-2 rounded-lg border disabled:opacity-50"
+                  >
+                    Pausa
+                  </button>
+                  <button
+                    type="button"
+                    disabled={actionLoading}
+                    onClick={handleModalConfirm}
+                    className="px-4 py-2 rounded-lg bg-[#1a3300] text-[#ffe95c] disabled:opacity-70 flex items-center justify-center min-w-[48px]"
+                  >
+                    {actionLoading ? (
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      "Avsluta"
+                    )}
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="flex justify-between items-center pt-4">

@@ -1056,7 +1056,7 @@ export default function AccountClient() {
             </p>
 
             {confirmType === "cancel" ? (
-              <div className="flex items-center justify-between pt-4">
+              <div className={`flex items-center pt-4 ${confirmType === "cancel" ? "justify-between" : "justify-end gap-3"}`}>
                 <button
                   type="button"
                   onClick={() => setConfirmType(null)}
@@ -1092,7 +1092,7 @@ export default function AccountClient() {
                 </div>
               </div>
             ) : (
-              <div className="flex justify-between items-center pt-4">
+              <div className="flex items-center pt-4 justify-end gap-3">
                 <button
                   onClick={() => setConfirmType(null)}
                   disabled={actionLoading}

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import * as Sentry from "@sentry/nextjs";
-import { PRICES_ONE_TIME } from "@/lib/stripePriceMap";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-02-25.clover" as any,
@@ -12,14 +11,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-
-type VolumeKey = "1L" | "2L" | "3L";
-
-const VOLUME_TO_PRICE_KEY: Record<VolumeKey, keyof typeof PRICES_ONE_TIME> = {
-  "1L": "1l-once",
-  "2L": "2l-once",
-  "3L": "3l-once",
-};
 
 export async function POST(req: Request) {
   let userId: string | undefined;
@@ -49,15 +40,47 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
 
-    const priceKey = VOLUME_TO_PRICE_KEY[volume as VolumeKey];
-    const priceId = PRICES_ONE_TIME[priceKey];
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL!;
+
+    const volumeNames: Record<string, string> = {
+      "1L": "1x1L premium olivolja — Extra beställning",
+      "2L": "2x1L premium olivolja — Extra beställning",
+      "3L": "3x1L premium olivolja — Extra beställning",
+    };
+
+    const volumeImages: Record<string, string> = {
+      "1L": "https://cdn.prod.website-files.com/676d596f9615722376dfe2fc/69bda36ba5276a17cef8b809_1x.png",
+      "2L": "https://cdn.prod.website-files.com/676d596f9615722376dfe2fc/69bda36c531d1e781a4bf7fd_2x.png",
+      "3L": "https://cdn.prod.website-files.com/676d596f9615722376dfe2fc/69bda36c7fc348f9c9652b39_3x.png",
+    };
+
+    // NOTE: Prices are in öre (SEK × 100). Update here when prices change.
+    // Also update the price display text in AccountClient.tsx to match.
+    const volumePrices: Record<string, number> = {
+      "1L": 30800, // 308 SEK (249 kr olivolja + 59 kr frakt)
+      "2L": 50700, // 507 SEK (448 kr olivolja + 59 kr frakt)
+      "3L": 65700, // 657 SEK (598 kr olivolja + 59 kr frakt)
+    };
 
     // Create Checkout Session — customer prefilled, address prefilled
     const session = await stripe.checkout.sessions.create({
       customer: profile.stripe_customer_id,
       payment_method_types: ["card", "klarna"],
-      line_items: [{ price: priceId, quantity: 1 }],
+      line_items: [
+        {
+          price_data: {
+            currency: "sek",
+            unit_amount: volumePrices[volume],
+            product_data: {
+              name: volumeNames[volume],
+              description:
+                "100% Jungfruolivolja av högsta kvalitet från Kreta – pressad av handplockade Koroneikioliver med låg syrahalt, rik på smak och naturliga antioxidanter.",
+              images: [volumeImages[volume]],
+            },
+          },
+          quantity: 1,
+        },
+      ],
       mode: "payment",
       success_url: `${siteUrl}/mina-sidor?order=success`,
       cancel_url: `${siteUrl}/mina-sidor?order=cancelled`,

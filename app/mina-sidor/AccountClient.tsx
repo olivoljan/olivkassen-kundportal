@@ -254,8 +254,10 @@ export default function AccountClient() {
     if (extraPrices) return; // already loaded
     setExtraPricesLoading(true);
     try {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (!currentSession?.access_token) return;
       const res = await fetch("/api/stripe/extra-order-prices", {
-        headers: { Authorization: `Bearer ${session?.access_token}` },
+        headers: { Authorization: `Bearer ${currentSession.access_token}` },
       });
       if (res.ok) {
         const data = await res.json();
@@ -267,14 +269,19 @@ export default function AccountClient() {
   };
 
   const handleExtraOrder = async () => {
-    if (!session?.access_token) return;
     setExtraOrderLoading(true);
     try {
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (!currentSession?.access_token) {
+        showToast("Sessionen har gått ut. Ladda om sidan.", 9000);
+        setExtraOrderLoading(false);
+        return;
+      }
       const res = await fetch("/api/stripe/one-time-order", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${currentSession.access_token}`,
         },
         body: JSON.stringify({ volume: extraVolume }),
       });
@@ -552,7 +559,7 @@ export default function AccountClient() {
               {/* ── VOLUME PICKER ── */}
               <div className="space-y-3">
                 <h3 className="text-lg font-semibold text-black">
-                  Välj storlek
+                Hur mycket ska vi leverera
                 </h3>
 
                 <div className="grid grid-cols-3 gap-2">
@@ -583,32 +590,24 @@ export default function AccountClient() {
                 </div>
 
                 {/* ── PRICE DISPLAY ── */}
-                <div className="bg-[#f5f4f4] rounded-xl px-4 py-3 min-h-[52px] flex items-center">
-                  {extraPricesLoading ? (
-                    <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
-                  ) : extraPrices ? (
-                    <div className="space-y-0.5">
-                      <p className="text-base font-semibold text-black">
-                        {extraVolume === "1L"
-                          ? "1 liter olivolja — 249 kr + 59 kr frakt"
-                          : extraVolume === "2L"
-                          ? "2 liter olivolja — 448 kr + 59 kr frakt"
-                          : "3 liter olivolja — 598 kr + 59 kr frakt"}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Totalt:{" "}
-                        <span className="font-semibold text-black">
-                          {extraPrices[extraVolume]
-                            ? `${(extraPrices[extraVolume].amount / 100).toFixed(0)} kr`
-                            : "—"}
-                        </span>{" "}
-                        · Levereras med DHL/Schenker till ditt närmsta ombud inom 2–4 dagar
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-400">Kunde inte hämta pris</p>
-                  )}
-                </div>
+                <div className="bg-[#f5f4f4] rounded-xl px-4 py-4 min-h-[52px]">
+  {extraPricesLoading ? (
+    <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
+  ) : extraPrices ? (
+    <div className="space-y-2">
+      <p className="text-2xl font-bold text-black">
+        {extraPrices[extraVolume]
+          ? `${(extraPrices[extraVolume].amount / 100).toFixed(0)} kr`
+          : "—"}
+      </p>
+      <p className="text-sm text-gray-500">
+        Frakt 59kr ingår · Levereras inom 2–4 dagar med DHL/Schenker
+      </p>
+    </div>
+  ) : (
+    <p className="text-sm text-gray-400">Kunde inte hämta pris</p>
+  )}
+</div>
               </div>
 
               {/* ── ORDER BUTTON ── */}

@@ -1089,7 +1089,7 @@ export default function AccountClient() {
                 </button>
               </div>
             ) : (
-              <div className="flex justify-end gap-3 pt-4">
+              <div className="flex justify-between items-center pt-4">
                 <button
                   onClick={() => setConfirmType(null)}
                   disabled={actionLoading}

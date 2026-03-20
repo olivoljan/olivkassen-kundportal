@@ -1,89 +1,87 @@
-import { NextRequest, NextResponse } from "next/server";
-import * as Sentry from "@sentry/nextjs";
+import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import * as Sentry from "@sentry/nextjs";
+import { PRICES_ONE_TIME } from "@/lib/stripePriceMap";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string);
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2026-02-25.clover" as any,
+});
 
-export async function POST(req: NextRequest) {
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+type VolumeKey = "1L" | "2L" | "3L";
+
+const VOLUME_TO_PRICE_KEY: Record<VolumeKey, keyof typeof PRICES_ONE_TIME> = {
+  "1L": "1l-once",
+  "2L": "2l-once",
+  "3L": "3l-once",
+};
+
+export async function POST(req: Request) {
   let userId: string | undefined;
 
   try {
-    const body = await req.json();
-    userId = body.userId;
+    const authHeader = req.headers.get("authorization");
+    const token = authHeader?.replace("Bearer ", "");
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!userId) {
-      return NextResponse.json({ error: "Missing userId" }, { status: 400 });
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    userId = user.id;
+
+    const { volume } = await req.json();
+    if (!volume || !["1L", "2L", "3L"].includes(volume)) {
+      return NextResponse.json({ error: "Invalid volume" }, { status: 400 });
     }
 
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL as string,
-      process.env.SUPABASE_SERVICE_ROLE_KEY as string
-    );
-
-    const { data: profile, error } = await supabase
+    // Get Stripe customer ID from Supabase profile
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("stripe_customer_id")
       .eq("id", userId)
       .single();
 
-    if (error || !profile?.stripe_customer_id) {
+    if (profileError || !profile?.stripe_customer_id) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
 
-    const customerId = profile.stripe_customer_id;
+    const priceKey = VOLUME_TO_PRICE_KEY[volume as VolumeKey];
+    const priceId = PRICES_ONE_TIME[priceKey];
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL!;
 
-    const subscriptions = await stripe.subscriptions.list({
-      customer: customerId,
-      status: "active",
-      limit: 1,
-    });
-
-    if (!subscriptions.data.length) {
-      return NextResponse.json({ error: "No active subscription found" }, { status: 400 });
-    }
-
-    const subscription = subscriptions.data[0];
-
-    const pendingItems = await stripe.invoiceItems.list({
-      customer: customerId,
-      pending: true,
-      limit: 10,
-    });
-    for (const item of pendingItems.data) {
-      await stripe.invoiceItems.del(item.id);
-    }
-
-    await stripe.invoiceItems.create({
-      customer: customerId,
-      amount: subscription.items.data[0].price.unit_amount ?? 59800,
-      currency: subscription.items.data[0].price.currency ?? "sek",
-      description: "Extra beställning",
-    });
-
-    const invoice = await stripe.invoices.create({
-      customer: customerId,
-      collection_method: "send_invoice",
-      days_until_due: 3,
-      auto_advance: false,
-    });
-
-    await stripe.invoices.finalizeInvoice(invoice.id);
-    await stripe.invoices.sendInvoice(invoice.id);
-
-    return NextResponse.json({ success: true });
-
-  } catch (err: any) {
-    console.error("ONE-TIME-ORDER ERROR:", err?.message, err?.raw ?? err);
-    Sentry.captureException(err, {
-      extra: {
+    // Create Checkout Session — customer prefilled, address prefilled
+    const session = await stripe.checkout.sessions.create({
+      customer: profile.stripe_customer_id,
+      payment_method_types: ["card", "klarna"],
+      line_items: [{ price: priceId, quantity: 1 }],
+      mode: "payment",
+      success_url: `${siteUrl}/mina-sidor?order=success`,
+      cancel_url: `${siteUrl}/mina-sidor?order=cancelled`,
+      shipping_address_collection: {
+        allowed_countries: ["SE"],
+      },
+      billing_address_collection: "required",
+      phone_number_collection: { enabled: true },
+      customer_update: {
+        address: "auto",
+        shipping: "auto",
+        name: "auto",
+      },
+      metadata: {
         userId,
-        route: "/api/stripe/one-time-order",
+        volume,
+        type: "extra_order",
       },
     });
-    return NextResponse.json(
-      { error: "Betalningen misslyckades" },
-      { status: 500 }
-    );
+
+    return NextResponse.json({ url: session.url });
+  } catch (err: any) {
+    console.error("ONE-TIME-ORDER ERROR:", err?.message, err?.raw ?? err);
+    Sentry.captureException(err, { tags: { route: "one-time-order", userId } });
+    return NextResponse.json({ error: err?.message ?? "Failed to create order" }, { status: 500 });
   }
 }

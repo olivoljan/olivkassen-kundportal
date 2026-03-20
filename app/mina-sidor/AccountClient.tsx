@@ -46,17 +46,37 @@ export default function AccountClient() {
   const [pauseType, setPauseType] = useState<"skip_one" | "indefinite">("skip_one");
   const [showPauseSelector, setShowPauseSelector] = useState(false);
 
+  const [extraVolume, setExtraVolume] = useState<"1L" | "2L" | "3L">("3L");
+  const [extraPrices, setExtraPrices] = useState<Record<string, { amount: number; priceId: string }> | null>(null);
+  const [extraPricesLoading, setExtraPricesLoading] = useState(false);
+  const [extraOrderSuccess, setExtraOrderSuccess] = useState(false);
+  const [extraOrderLoading, setExtraOrderLoading] = useState(false);
+
   const hasSchedule = !!(subscription as any)?.schedule;
+  const hasPlanChanged = selectedVolume !== activeVolume || selectedInterval !== activeInterval;
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("order") === "success") {
+      setExtraOrderSuccess(true);
+      setOpenSection("extraOrder");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     if (hasSchedule) setPauseType("indefinite");
   }, [hasSchedule]);
 
   const [confirmType, setConfirmType] = useState<
-    "pause" | "unpause" | "cancel" | "uncancel" | "changePlan" | "extraOrder" | null
+    | "pause"
+    | "unpause"
+    | "cancel"
+    | "uncancel"
+    | "changePlan"
+    | "pauseIndefiniteFromCancel"
+    | null
   >(null);
-
-  const [orderingExtra, setOrderingExtra] = useState(false);
   const [portalLoading, setPortalLoading] = useState<"payment" | "address" | null>(null);
   const [customerAddress, setCustomerAddress] = useState<any>(null);
 
@@ -209,7 +229,8 @@ export default function AccountClient() {
     });
 
     setSubscription(normalizeSubscription(updated));
-    setOpenSection(null);
+    setActiveVolume(selectedVolume);
+    setActiveInterval(selectedInterval);
     setUpdatingPlan(false);
     showToast("Abonnemanget uppdaterades");
   };
@@ -224,6 +245,91 @@ export default function AccountClient() {
     } else {
       setPortalLoading(null);
       showToast("Något gick fel. Försök igen.", 5000);
+    }
+  };
+
+  /* ================= EXTRA ORDER — LOAD PRICES ================= */
+
+  const loadExtraPrices = async () => {
+    if (extraPrices) return; // already loaded
+    setExtraPricesLoading(true);
+    try {
+      const res = await fetch("/api/stripe/extra-order-prices", {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setExtraPrices(data);
+      }
+    } finally {
+      setExtraPricesLoading(false);
+    }
+  };
+
+  const handleExtraOrder = async () => {
+    if (!session?.access_token) return;
+    setExtraOrderLoading(true);
+    try {
+      const res = await fetch("/api/stripe/one-time-order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ volume: extraVolume }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        showToast(data.error ?? "Något gick fel", 9000);
+        setExtraOrderLoading(false);
+      }
+    } catch {
+      showToast("Något gick fel. Försök igen.", 9000);
+      setExtraOrderLoading(false);
+    }
+  };
+
+  const handleModalConfirm = async () => {
+    setActionLoading(true);
+
+    try {
+      if (
+        confirmType === "pause" ||
+        confirmType === "unpause" ||
+        confirmType === "pauseIndefiniteFromCancel"
+      ) {
+        await handlePauseResume();
+        setOpenSection(null);
+        showToast(
+          confirmType === "unpause"
+            ? "Abonnemanget är återupptaget"
+            : "Abonnemanget är pausat"
+        );
+      }
+
+      if (confirmType === "cancel") {
+        await handleCancel(false);
+        setOpenSection(null);
+        showToast("Abonnemanget avslutades");
+      }
+
+      if (confirmType === "uncancel") {
+        await handleCancel(true);
+        setOpenSection(null);
+        showToast("Avslutet har ångrats");
+      }
+
+      if (confirmType === "changePlan") {
+        await handleChangePlan();
+      }
+
+      setConfirmType(null);
+    } catch {
+      // Keep modal open so the user can retry
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -400,28 +506,128 @@ export default function AccountClient() {
               <div className="text-black font-extrabold">Extra beställning</div>
               {openSection !== "extraOrder" && (
                 <div className="text-black text-lg font-normal mt-1.5">
-                  Behöver du mer olivolja? Beställ en extra leverans direkt.
+                  Beställ mer olivolja utan att ändra ditt abonnemang.
                 </div>
               )}
             </div>
           }
-          cardClassName="bg-[#a7f57b] text-black"
+          cardClassName={
+            openSection === "extraOrder"
+              ? "bg-white text-black"
+              : "bg-[#a7f57b] text-black"
+          }
           chevronClassName="text-black"
           isOpen={openSection === "extraOrder"}
-          onToggle={() => toggleSection("extraOrder")}
+          onToggle={() => {
+            toggleSection("extraOrder");
+            if (openSection !== "extraOrder") loadExtraPrices();
+          }}
         >
-          <p className="text-lg text-black leading-relaxed">
-          Du kan beställa extra olivolja i den mängd du vill — utan att 
-ändra ditt abonnemang. Välj antal, betala tryggt med ditt vanliga 
-betalningssätt och vi skickar leveransen direkt till din adress.
-          </p>
-          <button
-            onClick={() => setConfirmType("extraOrder")}
-            disabled={orderingExtra}
-            className="mt-4 bg-white text-black rounded-full px-6 py-4 font-semibold border border-black/10 hover:opacity-90 transition disabled:opacity-50"
-          >
-            {orderingExtra ? "Beställer..." : "Beställ extra olivolja"}
-          </button>
+          {extraOrderSuccess ? (
+            /* ── SUCCESS STATE ── */
+            <div className="space-y-4 py-2">
+              <h3 className="text-xl font-bold text-black">
+                Tack för din beställning!
+              </h3>
+              <p className="text-lg text-gray-700 leading-relaxed">
+                Din olivolja är på väg och kommer att Levereras med DHL/Schenker till ditt närmsta ombud inom 2–4 dagar
+              </p>
+              <button
+                onClick={() => {
+                  setExtraOrderSuccess(false);
+                  setOpenSection(null);
+                }}
+                className="w-full bg-[#1a3300] text-[#ffe95c] rounded-full py-4 px-6 font-semibold text-base hover:opacity-90 transition"
+              >
+                Stäng
+              </button>
+            </div>
+          ) : (
+            /* ── ORDER STATE ── */
+            <div className="space-y-6">
+              <p className="text-lg text-gray-700 leading-relaxed">
+                Har du slut på olivolja? Beställ extra direkt här — din adress är redan sparad och du betalar som vanligt. Abonnemanget påverkas inte.
+              </p>
+
+              {/* ── VOLUME PICKER ── */}
+              <div className="space-y-3">
+                <h3 className="text-lg font-semibold text-black">
+                  Välj storlek
+                </h3>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {(["1L", "2L", "3L"] as const).map((vol) => (
+                    <button
+                      key={vol}
+                      type="button"
+                      onClick={() => setExtraVolume(vol)}
+                      className={`relative flex flex-col items-center justify-center rounded-lg border-2 px-2 py-4 text-center transition font-semibold text-sm
+                ${extraVolume === vol
+                  ? "border-black bg-[#B0ED8D] text-black"
+                  : "border-gray-200 bg-white text-black hover:border-gray-400"
+                }`}
+                    >
+                      {vol === "3L" && (
+                        <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#ffe95c] text-black text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
+                          MEST POPULÄR
+                        </span>
+                      )}
+                      <span className="text-base font-medium">
+                        {vol === "1L" ? "1 liter" : vol === "2L" ? "2 liter" : "3 liter"}
+                      </span>
+                      <span className="text-sm font-normal mt-0.5">
+                        {vol === "1L" ? "1x1L" : vol === "2L" ? "2x1L" : "3x1L"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* ── PRICE DISPLAY ── */}
+                <div className="bg-[#f5f4f4] rounded-xl px-4 py-3 min-h-[52px] flex items-center">
+                  {extraPricesLoading ? (
+                    <div className="h-4 w-32 bg-gray-200 rounded animate-pulse" />
+                  ) : extraPrices ? (
+                    <div className="space-y-0.5">
+                      <p className="text-base font-semibold text-black">
+                        {extraVolume === "1L"
+                          ? "1 liter olivolja — 249 kr + 59 kr frakt"
+                          : extraVolume === "2L"
+                          ? "2 liter olivolja — 448 kr + 59 kr frakt"
+                          : "3 liter olivolja — 598 kr + 59 kr frakt"}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Totalt:{" "}
+                        <span className="font-semibold text-black">
+                          {extraPrices[extraVolume]
+                            ? `${(extraPrices[extraVolume].amount / 100).toFixed(0)} kr`
+                            : "—"}
+                        </span>{" "}
+                        · Levereras med DHL/Schenker till ditt närmsta ombud inom 2–4 dagar
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400">Kunde inte hämta pris</p>
+                  )}
+                </div>
+              </div>
+
+              {/* ── ORDER BUTTON ── */}
+              <button
+                onClick={handleExtraOrder}
+                disabled={extraOrderLoading || extraPricesLoading || !extraPrices}
+                className="w-full bg-[#1a3300] text-[#ffe95c] rounded-full py-4 px-6 font-semibold text-base hover:opacity-90 transition disabled:opacity-50"
+              >
+                {extraOrderLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-[#ffe95c] border-t-transparent rounded-full animate-spin" />
+                    Skickar till betalning...
+                  </span>
+                ) : (
+                  "Beställ extra olivolja"
+                )}
+              </button>
+            </div>
+          )}
         </AccordionCard>
 
         {/* ================= ABONNEMANG ================= */}
@@ -474,79 +680,86 @@ betalningssätt och vi skickar leveransen direkt till din adress.
                       <h3 className="text-lg font-semibold">
                       Ändra abonnemang
                       </h3>
-                    <div className="space-y-1">
-                      <p className="mt-1 text-md text-muted-foreground">
-                        Abonnemang:{" "}
-                        <span className="font-medium text-foreground">
-                          {activeVolume} / {formatInterval(activeInterval)}
-                        </span>
-                      </p>
-                      {nextDelivery && (
+                      <div className="bg-[#f5f4f4] rounded-xl px-4 py-3 space-y-1">
                         <p className="text-md text-muted-foreground">
-                          Nästa leverans:{" "}
+                          Abonnemang:{" "}
                           <span className="font-medium text-foreground">
-                            {new Date(nextDelivery * 1000).toLocaleDateString("sv-SE", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                            })}
+                            {activeVolume} / {formatInterval(activeInterval)}
                           </span>
                         </p>
-                      )}
+                        {nextDelivery && (
+                          <p className="text-md text-muted-foreground">
+                            Nästa leverans:{" "}
+                            <span className="font-medium text-foreground">
+                              {new Date(nextDelivery * 1000).toLocaleDateString("sv-SE", {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                              })}
+                            </span>
+                          </p>
+                        )}
                       </div>
                     </div>
 
-                    {/* ================= VOLUME FIRST ================= */}
-                    <div className="space-y-3">
-                      <h3 className="text-lg font-semibold">
-                        Hur mycket ska vi leverera?
-                      </h3>
+                    <div className="space-y-4">
+                      {/* ================= VOLUME FIRST ================= */}
+                      <div className="space-y-1">
+                        <h3 className="text-lg font-semibold">
+                          Hur mycket ska vi leverera?
+                        </h3>
 
-                      <CustomSelect
-                        options={[
-                          { value: "2L", label: "2 liter" },
-                          { value: "3L", label: "3 liter (3 × 1L)" },
-                        ]}
-                        value={selectedVolume}
-                        activeValue={activeVolume}
-                        onChange={(v) => setSelectedVolume(v as Volume)}
-                      />
-                    </div>
+                        <CustomSelect
+                          options={[
+                            { value: "2L", label: "2 liter" },
+                            { value: "3L", label: "3 liter (3 × 1L)" },
+                          ]}
+                          value={selectedVolume}
+                          activeValue={activeVolume}
+                          onChange={(v) => setSelectedVolume(v as Volume)}
+                        />
+                      </div>
 
-                    {/* ================= INTERVAL SECOND ================= */}
-                    <div className="space-y-3">
-                      <h3 className="text-lg font-semibold">
-                        Hur ofta ska vi leverera?
-                      </h3>
+                      {/* ================= INTERVAL SECOND ================= */}
+                      <div className="space-y-1">
+                        <h3 className="text-lg font-semibold">
+                          Hur ofta ska vi leverera?
+                        </h3>
 
-                      <CustomSelect
-                        options={[
-                          { value: "1m", label: "Varje månad" },
-                          { value: "3m", label: "Var 3:e månad" },
-                          { value: "6m", label: "Var 6:e månad" },
-                        ]}
-                        value={selectedInterval}
-                        activeValue={activeInterval}
-                        onChange={(v) => setSelectedInterval(v as Interval)}
-  />
-                    </div>
+                        <CustomSelect
+                          options={[
+                            { value: "1m", label: "Varje månad" },
+                            { value: "3m", label: "Var 3:e månad" },
+                            { value: "6m", label: "Var 6:e månad" },
+                          ]}
+                          value={selectedInterval}
+                          activeValue={activeInterval}
+                          onChange={(v) => setSelectedInterval(v as Interval)}
+                        />
+                      </div>
 
-                    {/* ================= ACTION BUTTONS ================= */}
-                    <div className="flex items-center justify-between gap-6 pt-2">
-                      <button
-                        onClick={() => setConfirmType("changePlan")}
-                        disabled={updatingPlan}
-                        className="flex-1 bg-[#1a3300] text-[#ffe95c] rounded-full py-4 px-6 font-semibold disabled:opacity-50 transition hover:opacity-90"
-                      >
-                        {updatingPlan ? "Uppdaterar..." : "Spara ändringar"}
-                      </button>
+                      {/* ================= ACTION BUTTONS ================= */}
+                      {hasPlanChanged && (
+                        <div className="flex items-center justify-between gap-6 pt-2">
+                          <button
+                            onClick={() => setConfirmType("changePlan")}
+                            disabled={updatingPlan}
+                            className="flex-1 bg-[#1a3300] text-[#ffe95c] rounded-full py-4 px-6 font-semibold disabled:opacity-50 transition hover:opacity-90"
+                          >
+                            {updatingPlan ? "Uppdaterar..." : "Spara ändringar"}
+                          </button>
 
-                      <button
-                        onClick={() => toggleSection("subscription")}
-                        className="underline text-gray-600 whitespace-nowrap text-base"
-                      >
-                        Avbryt
-                      </button>
+                          <button
+                            onClick={() => {
+                              setSelectedVolume(activeVolume);
+                              setSelectedInterval(activeInterval);
+                            }}
+                            className="underline text-gray-600 whitespace-nowrap text-base"
+                          >
+                            Avbryt
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
@@ -804,8 +1017,10 @@ betalningssätt och vi skickar leveransen direkt till din adress.
                 ? "Är du säker på att du vill avsluta?"
                 : confirmType === "uncancel"
                 ? "Vill du ångra ditt avslut?"
+                : confirmType === "pauseIndefiniteFromCancel"
+                ? "Vill du pausa abonnemanget tills vidare?"
                 : confirmType === "pause"
-                ? (pauseType === "skip_one" ? "Hoppa över nästa leverans?" : "Pausa ditt abonnemang?")
+                ? (pauseType === "skip_one" ? "Pausa kommande leverans?" : "Vill du pausa abonnemanget tills vidare?")
                 : confirmType === "unpause"
                 ? "Återuppta ditt abonnemang?"
                 : confirmType === "changePlan"
@@ -817,6 +1032,8 @@ betalningssätt och vi skickar leveransen direkt till din adress.
               {confirmType === "pause" && pauseType === "skip_one" &&
                 "Din kommande leverans hoppas över och du debiteras inte. Abonnemanget återupptas sedan automatiskt."}
               {confirmType === "pause" && pauseType === "indefinite" &&
+                "Abonnemanget pausas tillsvidare och du får inga fler leveranser eller debiteringar förrän du väljer att starta igen. Du kan återuppta när som helst."}
+              {confirmType === "pauseIndefiniteFromCancel" &&
                 "Abonnemanget pausas tillsvidare och du får inga fler leveranser eller debiteringar förrän du väljer att starta igen. Du kan återuppta när som helst."}
               {confirmType === "unpause" &&
                 "Abonnemanget aktiveras igen och du får din nästa leverans på ordinarie datum. Välkommen tillbaka!"}
@@ -836,79 +1053,64 @@ betalningssätt och vi skickar leveransen direkt till din adress.
                   Ändringen träder i kraft direkt och din nästa leverans kommer enligt det nya upplägget. Du debiteras inte något extra för ändringen.
                 </>
               )}
-              {confirmType === "extraOrder" &&
-                `Vill du beställa en extra leverans av ${activeVolume} olivolja? Du debiteras ${activeVolume === "3L" ? "598" : "598"} kr direkt.`}
             </p>
 
-            <div className="flex justify-end gap-3 pt-4">
-              <button
-                onClick={() => confirmType === "cancel" ? setConfirmType("pause") : setConfirmType(null)}
-                disabled={actionLoading}
-                className="px-4 py-2 rounded-lg border disabled:opacity-50"
-              >
-                {confirmType === "cancel" ? "Pausa" : "Nej"}
-              </button>
+            {confirmType === "cancel" ? (
+              <div className="flex items-center justify-end gap-3 pt-4 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setConfirmType(null)}
+                  className="underline text-gray-600 text-base bg-transparent border-0 p-0 cursor-pointer"
+                >
+                  Avbryt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPauseType("indefinite");
+                    setConfirmType("pauseIndefiniteFromCancel");
+                  }}
+                  disabled={actionLoading}
+                  className="px-4 py-2 rounded-lg border disabled:opacity-50"
+                >
+                  Pausa
+                </button>
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={handleModalConfirm}
+                  className="px-4 py-2 rounded-lg bg-[#1a3300] text-[#ffe95c] disabled:opacity-70 flex items-center justify-center min-w-[48px]"
+                >
+                  {actionLoading ? (
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    "Avsluta"
+                  )}
+                </button>
+              </div>
+            ) : (
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  onClick={() => setConfirmType(null)}
+                  disabled={actionLoading}
+                  className="px-4 py-2 rounded-lg border disabled:opacity-50"
+                >
+                  Nej
+                </button>
 
-              <button
-                disabled={actionLoading}
-                onClick={async () => {
-                  setActionLoading(true);
-
-                  try {
-                    if (confirmType === "pause" || confirmType === "unpause") {
-                      await handlePauseResume();
-                      setOpenSection(null);
-                      showToast(
-                        confirmType === "pause"
-                          ? "Abonnemanget är pausat"
-                          : "Abonnemanget är återupptaget"
-                      );
-                    }
-
-                    if (confirmType === "cancel") {
-                      await handleCancel(false);
-                      setOpenSection(null);
-                      showToast("Abonnemanget avslutades");
-                    }
-
-                    if (confirmType === "uncancel") {
-                      await handleCancel(true);
-                      setOpenSection(null);
-                      showToast("Avslutet har ångrats");
-                    }
-
-                    if (confirmType === "changePlan") {
-                      await handleChangePlan();
-                    }
-
-                    if (confirmType === "extraOrder") {
-                      setOrderingExtra(true);
-                      const res = await safeFetch("/api/stripe/one-time-order", {
-                        userId: session.user.id,
-                      });
-                      setOrderingExtra(false);
-                      if (res?.success) showToast("En faktura har skickats till din e-post. Betala inom 3 dagar. 🫒", 8000);
-                      else showToast(res?.error ?? "Något gick fel", 9000);
-                    }
-
-                    setConfirmType(null);
-                  } catch {
-                    // Keep modal open so the user can retry
-                  } finally {
-                    setActionLoading(false);
-                  }
-                }}
-                className="px-4 py-2 rounded-lg bg-[#1a3300] text-[#ffe95c] disabled:opacity-70 flex items-center justify-center min-w-[48px]"
-              >
-                {actionLoading ? (
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : confirmType === "cancel" ? (
-                  "Avsluta"
-                ) : (
-                  "Ja"
-                )}
-              </button>
-            </div>
+                <button
+                  disabled={actionLoading}
+                  onClick={handleModalConfirm}
+                  className="px-4 py-2 rounded-lg bg-[#1a3300] text-[#ffe95c] disabled:opacity-70 flex items-center justify-center min-w-[48px]"
+                >
+                  {actionLoading ? (
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    "Ja"
+                  )}
+                </button>
+              </div>
+            )}
 
           </div>
         </div>

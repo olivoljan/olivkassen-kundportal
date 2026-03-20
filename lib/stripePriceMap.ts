@@ -93,3 +93,24 @@ export const LIVE_PRICES = {
     process.env.NODE_ENV === "production"
       ? LIVE_PRICE_MAP
       : TEST_PRICE_MAP;
+
+/* =========================================
+   ONE-TIME ORDER PRICES (Extra beställning)
+========================================= */
+
+export const LIVE_PRICES_ONE_TIME = {
+  "1l-once": "price_1TD0e0ClYp4p5ca6Ci4xxTcX",
+  "2l-once": "price_1TD0e0ClYp4p5ca6N9EezDm0",
+  "3l-once": "price_1TD0giClYp4p5ca682HSg91I",
+};
+
+export const TEST_PRICES_ONE_TIME = {
+  "1l-once": "price_1TD0WxEKCocP3sE0XMylLfVl",
+  "2l-once": "price_1TD0WxEKCocP3sE0x1OjikG3",
+  "3l-once": "price_1TD0WxEKCocP3sE07t0UVynU",
+};
+
+export const PRICES_ONE_TIME =
+  process.env.STRIPE_ENV === "live"
+    ? LIVE_PRICES_ONE_TIME
+    : TEST_PRICES_ONE_TIME;
